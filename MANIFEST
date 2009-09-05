@@ -1,0 +1,17 @@
+Changes
+ignore.txt
+inc/Module/Install.pm
+inc/Module/Install/Base.pm
+inc/Module/Install/Makefile.pm
+inc/Module/Install/MakeMaker.pm
+inc/Module/Install/Metadata.pm
+lib/SweetPea.pm
+Makefile.PL
+MANIFEST
+META.yml
+README
+t/00-load.t
+t/boilerplate.t
+t/pod-coverage.t
+t/pod.t
+TODO

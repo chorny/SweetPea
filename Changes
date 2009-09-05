@@ -1,0 +1,13 @@
+Revision history for SweetPea
+
+2.00    8/28/2009 11:48 PM EST
+        Refactored to use CGI only.
+        Added makeapp method to create application structure dynamically.
+        Added ability to auto-initialize controllers so that initialization (the _new method) happens dynamically.
+2.01    8/31/2009 1:24 AM EST
+        Fixed CGI::Session auto-initialization via the plug. Around line 136.
+2.02    9/1/2009 6:46 AM EST
+        Added method to alter the applications content-type.
+        Changing the permissions for generated App.pm files to mode (755).
+2.03    9/1/2009 9:00 AM EST
+        Fixed POD
