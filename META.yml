@@ -19,5 +19,6 @@ no_index:
     - t
 requires:
   CGI: 0
+  CGI::Session: 0
   Test::More: 0
 version: 2.03

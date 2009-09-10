@@ -11,3 +11,8 @@ Revision history for SweetPea
         Changing the permissions for generated App.pm files to mode (755).
 2.03    9/1/2009 9:00 AM EST
         Fixed POD
+2.06    9/10/2009 12:12PM EST
+        Fixed POD.
+        Added url/uri methods/corrections.
+        Added unplug method to re-initialize plugin accessors.
+        Install requires CGI::Session.

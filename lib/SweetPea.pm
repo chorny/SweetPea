@@ -10,6 +10,7 @@ BEGIN {
 use CGI;
 use CGI::Carp qw/fatalsToBrowser/;
 use CGI::Cookie;
+use CGI::Session;
 use FindBin;
 use File::Find;
 
@@ -19,11 +20,11 @@ SweetPea - A simple light-weight web application framework based on an MVC desig
 
 =head1 VERSION
 
-Version 2.02
+Version 2.06
 
 =cut
 
-our $VERSION = '2.03';
+our $VERSION = '2.06';
 
 =head1 SYNOPSIS
 
@@ -59,6 +60,10 @@ using SweetPea is as easy as ...
     sweet/application/Controller/Sweet.pm - sub welcome { ... }. Also note that multi-level namespaces are supported, e.g.
     http://localhost/admin/users/account/profile will match either Controller::Admin::Users::Account::Profile::_index() or
     Controller::Admin::Users::Account::profile() or else default to Controller::Root::_index()
+    
+    # Note! sweet/application/Controller/Root.pm should exist as Controller::Root::_index() is where failed requests
+    are routed to by default. If that module and routine doesn't exist a blank page will be rendered on failure. It is
+    recommended to use Root::_index() as your website/application landing page.
 
 =head1 EXPORT
 
@@ -100,7 +105,8 @@ sub run {
 
 =begin ignore 
 
-The plugins method is an internal method (not to be called externally) that sets up module accessors.
+The plugins method is an internal method (not to be called externally) that sets
+up module accessors.
 
 =end ignore
 =cut
@@ -232,7 +238,8 @@ sub _load_path_and_actions {
 
 =begin ignore
 
-This _self_check method is an internal method that verifies that all the required elements are in place to ensure a happy execution.
+This _self_check method is an internal method that verifies that all the required
+elements are in place to ensure a happy execution.
 
 =end ignore
 =cut
@@ -247,7 +254,8 @@ sub _self_check {
 
 =begin ignore
 
-The _init_dispatcher method is an internal method that loads all the applications methods and determines which methods to use.
+The _init_dispatcher method is an internal method that loads all the applications
+methods and determines which methods to use.
 
 =end ignore
 =cut
@@ -338,7 +346,8 @@ sub _init_dispatcher {
 
 =head2 start
 
-The start method should probably be named (startup) because it is the method which configures the environment and performs various startup tasks.
+The start method should probably be named (startup) because it is the method
+which configures the environment and performs various startup tasks.
 
 =cut
 
@@ -381,7 +390,8 @@ sub finish {
 
 =head2 forward
 
-The forward method executes a method from within another class, then continues to execute instructions in the method it was called from.
+The forward method executes a method from within another class, then continues
+to execute instructions in the method it was called from.
 
 =cut
 
@@ -401,7 +411,8 @@ sub forward {
 
 =head2 detach
 
-The detach method executes a method from within another class, then immediately executes the special "end" method which finalizes the request.
+The detach method executes a method from within another class, then immediately
+executes the special "end" method which finalizes the request.
 
 =cut
 
@@ -433,30 +444,65 @@ sub application {
     return $self->{store}->{application};
 }
 
-=head2 content_type
+=head2 contenttype
 
-The content_type method set the desired output format for use with http headers
+The contenttype method set the desired output format for use with http headers
 
 =cut
 
-sub content_type {
+sub contenttype {
     my ( $self, $type ) = @_;
     $self->application->{content_type} = $type;
 }
 
-=head2 uri
+=head2 controller
 
-The uri method returns the base uri of the application.
+The action method returns the current requested MVC controller/package
 
 =cut
 
-sub url {
+sub controller {
+    my $self = shift;
+    return $self->uri->{controller};
+}
+
+=head2 action
+
+The action method returns the current requested MVC action
+
+=cut
+
+sub action {
+    my $self = shift;
+    return $self->uri->{action};
+}
+
+=head2 url/uri
+
+The url/uri methods returns a completed uri string or reference to root, here or path
+variables, e.g. $s->uri->{here}.
+
+=cut
+
+sub uri {
     my ( $self, $path ) = @_;
     return $self->{store}->{application}->{'url'} unless $path;
     return
         $self->cgi->url( -base => 1 )
       . $self->{store}->{application}->{'url'}->{'root'}
       . $path;
+}   sub url { return shift->uri(@_); }
+
+=head2 path
+
+The path method returns a completed path to root or location passed to the path method.
+
+=cut
+
+sub path {
+    my ( $self, $path ) = @_;
+    return $path ? $self->{store}->{application}->{'path'} :
+    $self->{store}->{application}->{'path'} . $path;
 }
 
 =head2 cookies
@@ -475,7 +521,8 @@ sub cookies {
 
 =head2 html
 
-The html method sets data to be output to the browser or if called with no parameters returns the data recorded and clears the data store.
+The html method sets data to be output to the browser or if called with no
+parameters returns the data recorded and clears the data store.
 
 =cut
 
@@ -550,7 +597,8 @@ sub output {
 
 =head2 plug
 
-This function creates accessors for third party (non-core) modules, e.g. $self->plug('email', sub{ return Email::Stuff->new(...) });
+This function creates accessors for third party (non-core) modules, e.g.
+$self->plug('email', sub{ return Email::Stuff->new(...) });
 
 =cut
 
@@ -573,6 +621,17 @@ sub plug {
             };
         }
     }
+}
+
+=head2 unplug
+
+The unplug method re-initializes the accessor created by the plug method.
+
+=cut
+
+sub unplug {
+    my ( $self, $name) = @_;
+    delete $self->{".$name"};
 }
 
 =head2 makeapp
@@ -615,11 +674,7 @@ EOF
         "$path/sweet/application/Controller/Root.pm" => <<'EOF'
 package Controller::Root;
 
-# =head1 NAME
-
-# Controller::Root - Root Controller (Must Exist)
-
-# =cut
+# Controller::Root - Root Controller / Landing Page (Should Exist)
 
 sub _begin {
     my ( $self, $s ) = @_;
@@ -640,18 +695,9 @@ EOF
         , "$path/sweet/application/Controller/Sweet.pm" => <<'EOF'
 package Controller::Sweet;
 
-#=head1 NAME
-
-#Controller::Sweet - SweetPea Introduction and Welcome Page
-
-#=cut
-
-#=head2 welcome
-
-#This function displays a simple information page the application defaults to before development.
-#This module should be removed before development.
-
-#=cut
+# Controller::Sweet - SweetPea Introduction and Welcome Page
+# This function displays a simple information page the application defaults to before development.
+# This module should be removed before development.
 
 sub welcome {
     my ( $self, $s ) = @_;
@@ -758,14 +804,6 @@ package Model::Schema;
 use strict;
 use warnings;
 
-# use Database::Module;
-
-# =head1 NAME
-
-# Model::Schema - Database Class Encapsulation
-
-# =cut
-
 1;
 
 EOF
@@ -773,14 +811,6 @@ EOF
 package View::Main;
 use strict;
 use warnings;
-
-# use Template;
-
-# =head1 NAME
-
-# View::Main - Main Template Rendering Class Encapsulation
-
-# =cut
 
 1;
 
@@ -791,13 +821,7 @@ package App;
 use warnings;
 use strict;
 
-# e.g. use View::Main;
-
-# =head1 NAME
-
 # App - This module loads all third party modules and provides accessors to the calling module!
-
-# =cut
 
 sub plugins {
     my ( $class, $base ) = @_;
@@ -840,7 +864,8 @@ EOF
                         open IN, ">$path$fod" || die "Can't create $file, $!";
                         print IN $app_structure->{"$path$fod"};
                         close IN;
-                        chmod ( ($fod =~ /App\.pm/) ? '0755' : '0754', "$path$fod" );
+                        my $mode = ($fod =~ /App\.pm/) ? '0755' : '0754';
+                        chmod $mode, "$path$fod";
                         print "Created file $fod (chmod 754) ...\n";
                     }
                     else {
