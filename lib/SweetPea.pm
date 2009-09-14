@@ -263,12 +263,6 @@ sub start {
     );
 }
 
-=head2 finish
-
-The finish method performs various cleanup tasks after the request reaches its end.
-
-=cut
-
 sub finish {
     my $self = shift;
 
@@ -280,13 +274,6 @@ sub finish {
     # commit session changes if a session has been created
     $self->session->flush() if defined $self->{'.session'};
 }
-
-=head2 forward
-
-The forward method executes a method from within another class, then continues
-to execute instructions in the method it was called from.
-
-=cut
 
 sub forward {
     my ( $self, $path, $class ) = @_;
@@ -302,80 +289,36 @@ sub forward {
       if exists $dispatch{"$path/_end"};
 }
 
-=head2 detach
-
-The detach method executes a method from within another class, then immediately
-executes the special "end" method which finalizes the request.
-
-=cut
-
 sub detach {
     my ( $self, $path, $class ) = @_;
     $self->forward( $path, $class );
     $self->finish();
 }
 
-=head2 store
-
-The store method is in accessor to the special "store" hashref.
-
-=cut
-
 sub store {
     my $self = shift;
     return $self->{store};
 }
-
-=head2 application
-
-The application method is in accessor to the special "application" hashref.
-
-=cut
 
 sub application {
     my $self = shift;
     return $self->{store}->{application};
 }
 
-=head2 contenttype
-
-The contenttype method set the desired output format for use with http headers
-
-=cut
-
 sub contenttype {
     my ( $self, $type ) = @_;
     $self->application->{content_type} = $type;
 }
 
-=head2 controller
-
-The action method returns the current requested MVC controller/package
-
-=cut
-
 sub controller {
-    my $self = shift;
-    return $self->uri->{controller};
+    my ($self, $path) = @_;
+    return $self->uri->{controller} . ( $path ? $path : '' );
 }
-
-=head2 action
-
-The action method returns the current requested MVC action
-
-=cut
 
 sub action {
     my $self = shift;
     return $self->uri->{action};
 }
-
-=head2 url/uri
-
-The url/uri methods returns a completed uri string or reference to root, here or path
-variables, e.g. $s->uri->{here}.
-
-=cut
 
 sub uri {
     my ( $self, $path ) = @_;
@@ -386,23 +329,11 @@ sub uri {
       . $path;
 }   sub url { return shift->uri(@_); }
 
-=head2 path
-
-The path method returns a completed path to root or location passed to the path method.
-
-=cut
-
 sub path {
     my ( $self, $path ) = @_;
     return $path ? $self->{store}->{application}->{'path'} :
     $self->{store}->{application}->{'path'} . $path;
 }
-
-=head2 cookies
-
-Returns a list of cookies set throughout the duration of the request.
-
-=cut
 
 sub cookies {
     my $self = shift;
@@ -411,13 +342,6 @@ sub cookies {
       ? @{ $self->{store}->{application}->{cookie_data} }
       : ();
 }
-
-=head2 html
-
-The html method sets data to be output to the browser or if called with no
-parameters returns the data recorded and clears the data store.
-
-=cut
 
 sub html {
     my ( $self, @html ) = @_;
@@ -438,13 +362,6 @@ sub html {
         }
     }
 }
-
-=head2 debug
-
-The debug method sets data to be output to the browser with additional information for debugging
-purposes or if called with no parameters returns the data recorded and clears the data store.
-
-=cut
 
 sub debug {
     my ( $self, @debug ) = @_;
@@ -471,29 +388,14 @@ sub debug {
     }
 }
 
-=head2 output
-
-This method should be used with the debug or html methods to exit the application and spit out the passed in output.
-
-=cut
-
 sub output {
-    my ( $self, @output ) = @_;
+    my ($self, $seperator) = @_;
     $self->start();
-    @output = @{ $output[0] } if ( ref( $output[0] ) eq "ARRAY" );
-    foreach (@output) {
-        print "$_<br/>\n";
-    }
+    @output = @{ ( defined $seperator ? $self->debug : $self->html ) };
+    $seperator = "" unless defined $seperator;
+    print join( $seperator, @output );
     exit;
 }
-
-
-=head2 plug
-
-This function creates accessors for third party (non-core) modules, e.g.
-$self->plug('email', sub{ return Email::Stuff->new(...) });
-
-=cut
 
 sub plug {
     my ( $self, $name, $init ) = @_;
@@ -516,23 +418,11 @@ sub plug {
     }
 }
 
-=head2 unplug
-
-The unplug method re-initializes the accessor created by the plug method.
-
-=cut
-
 sub unplug {
     my ( $self, $name) = @_;
     delete $self->{".$name"};
+    return $self;
 }
-
-=head2 makeapp
-
-This function is exported an intended to be called from the command-line. This creates the boiler plate appication
-structure.
-
-=cut
 
 sub makeapp {
     my $path          = $FindBin::Bin;
@@ -836,7 +726,7 @@ Oh how Sweet web application development can be ...
     > Creat....
     > ...
     
-    # in the generated .pl file (change the shebang/path to perl if neccessary)
+    # in the generated .pl file (change the path to perl if neccessary)
     
     #!/usr/bin/perl -w
     use SweetPea;
@@ -851,24 +741,46 @@ View, Controller) design pattern using useful concepts from Mojolicious, Catalys
 and other robust web frameworks. SweetPea has a short learning curve, is
 light-weight, as scalable as you need it to be, and requires little configuration.
 
-=head1 HOW IT WORKS
-
-    # The request
-    http://localhost/
-        
-        # The response
-        /.pl > Controller::Root::_index();
-        
-
 =head1 EXPORTED
 
     makeapp (skeleton application generation)
 
-=cut
+=head1 HOW IT WORKS
+
+SweetPea uses a simple MVC pattern and ideology for processing and
+responding to requests from the users browser. Here is an example
+request and response outlining how SweetPea behaves when a request
+is received.
+    
+    # The request
+    http://localhost/admin/auth/
+    - The user requests http://localhost/admin/auth/ from the browser.
+    
+    # The simple MVC pattern
+    http://localhost/(admin/auth/)
+    - admin/auth either matches as a Controller or Controller/Action.
+    - e.g. Controller::Admin::auth() or Controller::Admin::Auth::_index()
+    
+    # The response
+    - .pl (dispatcher/router) invokes SweetPea->new->run
+    - the run method loads all plugins and scans the controllers folder
+    building a table of controller/actions for further dispatching.
+    - the dispatching routine executes the global or local _begin method,
+    then executes the action or global or local _index method, and
+    finally executes the global or local _end method.
+    - the start and finish methods are then called to create, render
+    and finalize the response and output.
+    
+    # Other magic (not included)
+    * SweetPea will support routing which is a very popular way of
+    dispatching URLs. Using routes will disable the default method
+    of discovering controllers and actions making the application
+    more secure. SweetPea will default scanning the controllers
+    folder if no routes are defined.
 
 =head1 APPLICATION STRUCTURE
 
-    /static                 ## static content (html, css, etc) can be stored here
+    /static                 ## static content (html, css) is stored here
     /sweet                  ## application files are stored here
         /application        ## MVC files are stored here
             /Controller     ## controllers are stored here
@@ -884,25 +796,30 @@ light-weight, as scalable as you need it to be, and requires little configuratio
     /.htaccess              ## enables pretty-urls on apache w/mod-rewrite
     /.pl                    ## default dispatcher (controller/action router)
 
-=head1 GENERATED FILES
+=head1 GENERATED FILES INFORMATION
 
 =head2 sweet/application/Controller/Root.pm
 
-    The Root.pm controller is the default controller similar in function to a
-    directory index (e.g. index.html). When a request is received that can not be
-    matched in the controller/action table, the root/index (or Controller::Root::_index)
-    method is invoked. This makes the _index method of Controller::Root, a kind of
-    global fail-safe or fall back method.
+I<Controller::Root>
+
+    The Root.pm controller is the default controller similar in function to
+    a directory index (e.g. index.html). When a request is received that can
+    not be matched in the controller/action table, the root/index
+    (or Controller::Root::_index) method is invoked. This makes the _index
+    method of Controller::Root, a kind of global fail-safe or fall back
+    method.
     
-    The _begin method is executed before the requested action, if no action is
-    specified in the request the _index method is used, The _end method is invoked
-    after the requested action or _index method has been executed.
+    The _begin method is executed before the requested action, if no action
+    is specified in the request the _index method is used, The _end method
+    is invoked after the requested action or _index method has been
+    executed.
     
-    The _begin, _index, and _end methods can exist in any controller and serves the
-    same purposes described here. During application request processing, these
-    special routines are checked for in the namespace of the current requested
-    action's Controller, if they are not found then the (global) alternative found
-    in the Controller::Root namespace will be used.
+    The _begin, _index, and _end methods can exist in any controller and
+    serves the same purposes described here. During application request
+    processing, these special routines are checked for in the namespace of
+    the current requested action's Controller, if they are not found then
+    the (global) alternative found in the Controller::Root namespace will
+    be used.
 
     # Controller::RootRoot.pm
     package Controller::Root;
@@ -913,17 +830,21 @@ light-weight, as scalable as you need it to be, and requires little configuratio
 
 =head2 sweet/application/Controller/Sweet.pm
 
+I<Controller::Sweet>
+
     # Sweet.pm
     * A welcome page for the newly created application. (Safe to delete)
 
 =head2 sweet/application/Model/Schema.pm
 
+I<Model::Schema>
+
     # Model/Schema.pm
-    The Model::Schema boiler-plate model package is were your data connection,
-    accessors, etc can be placed. SweetPea does not impose a specific
-    configuration style, please feel free to connect to your data in the best
-    possible fashion. Here is an example of how one might use this empty
-    package with DBIx::Class.
+    The Model::Schema boiler-plate model package is were your data
+    connection, accessors, etc can be placed. SweetPea does not impose
+    a specific configuration style, please feel free to connect to your
+    data in the best possible fashion. Here is an example of how one
+    might use this empty package with DBIx::Class.
     
     # in Model/Schema.pm
     package Model::Schema;
@@ -934,7 +855,7 @@ light-weight, as scalable as you need it to be, and requires little configuratio
     # in App.pm
     use Model::Schema;
     sub plugins {
-        $base->plug('data', sub{ shift; return Model::Schema->new(@_) });
+        $base->plug('data', sub { shift; return Model::Schema->new(@_) });
     }
     
     # example usage in Controller/Root.pm
@@ -945,20 +866,22 @@ light-weight, as scalable as you need it to be, and requires little configuratio
 
 =head2 sweet/application/View/Main.pm
 
+I<View::Main>
+
     # View/Main.pm
     The View::Main boiler-plate view package is were your layout/template
     accessors and renders might be stored. Each view is in fact a package
-    that determines how data should be rendered back to the user in response to
-    the request. Examples of different views are as follows:
+    that determines how data should be rendered back to the user in
+    response to the request. Examples of different views are as follows:
     
-    View::Main - Main view package that renders layouts and templates base on
-    the main application interface design
+    View::Main - Main view package that renders layouts and templates
+    based on the main application's user interface design.
     
-    View::Email::HTML - A view package which renders templates to be emailed
-    as HTML.
+    View::Email::HTML - A view package which renders templates to
+    be emailed as HTML.
     
-    View::Email::TEXT - A view package which renders templates to be emailed
-    as plain text.
+    View::Email::TEXT - A view package which renders templates to be
+    emailed as plain text.
     
     Here is an example of how one might use this empty
     package with Template (template toolkit).
@@ -988,13 +911,15 @@ light-weight, as scalable as you need it to be, and requires little configuratio
     
 =head2 sweet/application/App.pm
 
+I<App>
+
     # App.pm
-    The App application package is the developers access point to configure and
-    extend the application before request processing. This is typically done using
-    the plugins method. This package contains the special and required plugins
-    method. Inside the plugins method is were other Modules are loaded and Module
-    accessors are created using the core "plug" method. The following is an example
-    of App.pm usage.
+    The App application package is the developers access point to
+    configure and extend the application before request processing. This
+    is typically done using the plugins method. This package contains
+    the special and required plugins method. Inside the plugins method is
+    were other Modules are loaded and Module accessors are created using
+    the core "plug" method. The following is an example of App.pm usage.
     
     package App;
     use warnings;
@@ -1007,21 +932,24 @@ light-weight, as scalable as you need it to be, and requires little configuratio
     sub plugins {
         my ( $class, $base ) = @_;
         my $self = bless {}, $class;
-        $base->plug( 'form', sub { shift; return HTML::FormFu->new(...) } );
-        $base->plug( 'data', sub { shift; return Model::Schema->new(...) } );
-        $base->plug( 'view', sub { shift; return View::Main->new(...) } );
-        $base->plug( 'grid', sub { shift; return HTML::GridFu->new(...) } );
+        $base->plug( 'form', sub { shift; return HTML::FormFu->new(@_) } );
+        $base->plug( 'data', sub { shift; return Model::Schema->new(@_) } );
+        $base->plug( 'view', sub { shift; return View::Main->new(@_) } );
+        $base->plug( 'grid', sub { shift; return HTML::GridFu->new(@_) } );
         return $self;
     }
     1;    # End of App
 
 =head2 .htaccess
 
+I<htaccess>
+
     # .htaccess
-    The .htaccess file allows apache-type web servers that support mod-rewrite to
-    automatically configure your application environment. Using mod-rewrite your
-    application can make use of pretty-urls. The requirements for using .htaccess
-    files with your SweetPea application are as follows:
+    The .htaccess file allows apache-type web servers that support
+    mod-rewrite to automatically configure your application environment.
+    Using mod-rewrite your application can make use of pretty-urls. The
+    requirements for using .htaccess files with your SweetPea application
+    are as follows:
     
     mod-rewrite support
     .htaccess support with Allow, Deny
@@ -1038,10 +966,13 @@ light-weight, as scalable as you need it to be, and requires little configuratio
 
 =head2 .pl
 
+I<pl>
+
     # .pl
-    The .pl file is the main application router/dispatcher. It is responsible for
-    prepairing the application via executing all pre and post processing routines
-    as well as directing requests to the appropriate controllers and actions.
+    The .pl file is the main application router/dispatcher. It is
+    responsible for prepairing the application via executing all pre and
+    post processing routines as well as directing requests to the
+    appropriate controllers and actions.
     
     #!/usr/env/perl
     BEGIN {
@@ -1056,15 +987,140 @@ light-weight, as scalable as you need it to be, and requires little configuratio
 
 =head1 SPECIAL ROUTINES
 
-=head1 RULES AND SYTAX
+=head2 _begin
+
+    # _begin
+    sub _begin {...}
+    
+    The begin method can exist both globally and locally, and will be
+    automatically invoked per request. When a request is processed,
+    SweetPea checks whether the _begin method exists in the namespace
+    of the Controller being requested, if not it checks whether the
+    _begin method exists in the Controller::Root namespace and
+    executes that method. If you opt to keep and use the default
+    controller Controller::Root, then its _begin method will be
+    defined as the global _begin method and will be executed
+    automatically with each request. The automatic execution of
+    _begin in Controller::Root can be overridden by adding a _begin
+    method to the namespace of the controller to be requested.
+    
+    This special method is useful for checking user permissions, etc.
+
+=head2 _index
+
+    # _index
+    sub _index {...}
+    
+    The index method can exist both globally and locally, and will
+    be automatically invoked *only* if an action is not specified.
+    When a request is processed, SweetPea scans the controllers
+    folder building a table of controllers and actions for
+    dispatching. The dispatching routine executes attempts to
+    execute the action, if no action is specified, it
+    default to executing the global or local _index method
+    looking locally first, then globally ofcourse. The automatic
+    execution of _index in Controller::Root can be overridden by
+    adding a _index method to the namespace of the controller to
+    be requested.
+    
+    This special method acts as a directory index or index.html
+    file in that it is executed when no other file (action) is
+    specified.
+    
+=head2 _end
+
+    # _end
+    sub _end {...}
+    
+    The end method can exist both globally and locally, and will be
+    automatically invoked per request. When a request is processed,
+    SweetPea checks whether the _end method exists in the namespace
+    of the Controller being requested, if not it checks whether the
+    _end method exists in the Controller::Root namespace and
+    executes that method. If you opt to keep and use the default
+    controller Controller::Root, then its _end method will be
+    defined as the global _end method and will be executed
+    automatically with each request. The automatic execution of
+    _end in Controller::Root can be overridden by adding a _end
+    method to the namespace of the controller to be requested.
+    
+    This special method is useful for performing cleanup
+    functions at the end of a request.
+
+
+=head1 RULES AND SYNTAX
+
+=head2 The anatomy of a controller method
+
+    Controllers are used by SweetPea in an OO (object-oriented)
+    fashion and thus, all controller methods should follow the
+    same design as they are passed the same parameters.
+    
+    sub foo {
+        my ($self, $s) = @_;
+        ...
+    }
+    
+    The foo method above (as well as al other controller methods)
+    are passed at least two objects, an instance of the current
+    controller usually referred to as $self, and an instance of
+    the SweetPea application object usually referred to as $s.
+    
+    Note! Actions prefixed with an underscore can not be
+    displatched to using URLs.
+    
+=head2 How to use plugins (other modules)
+
+    Plugins are a great way to extend the functionality of a
+    SweetPea application. Plugins are defined in the application
+    package App.pm inside of the special plugins method as
+    follows:
+    
+    # inside of App.pm
+    package App;
+    ...
+    use CPAN::Module;
+    
+    sub plugins {
+        my ( $class, $base ) = @_;
+        my $self = bless {}, $class;
+        $base->plug( 'cpan', sub { shift; return CPAN::Module->new(@_) } );
+        return $self;
+    }
+    ...
+    
+    # notice below how an accessor is created for the ficticious
+    CPAN::Module in the SweetPea namespace
+    
+    # inside sweet/Controller/MyController.pm
+    sub _index {
+        my ($self, $s) = @_;
+        $s->cpan->some_method(...);
+    }
+    
+    # when $s->cpan is called, it creates (unless the object reference
+    exists) and returns a reference to that module object. To create
+    or initialize another object, simply call the unplu method on the
+    object's name.
+    
+    # inside sweet/Controller/MyController.pm
+    sub _index {
+        my ($self, $s) = @_;
+        my $foo = $s->cpan;
+        my $bar = $s->cpan;
+        my $baz = $s->unplug('cpan')->cpan;
+    }
+    
+    # in the example above, $foo and $bar hold the same reference, but
+    $baz is holding a new refernce as if it called CPAN::Module->new;
 
 =head1 INSTANTIATION
 
 =head2 run
 
-The new method initializes a new SweetPea object, the run method discovers
-controllers and actions and executes internal pre and post request processing
-routines.
+    The new method initializes a new SweetPea object, the run method discovers
+    controllers and actions and executes internal pre and post request processing
+    routines.
 
     # in your .pl or other index/router file
     my $s = SweetPea->new;
@@ -1074,23 +1130,316 @@ routines.
 
 =head1 CONTROLLERS AND ACTIONS
 
+    Controllers are always created in the sweet/controller folder and defined
+    under the Controller namespace, e.g. Controller::MyController. In keeping
+    with simplicity, controllers and actions are actually packages and
+    routines ( controller/action = package controller; sub action {...} ).
+    
+    NOTE! Actions prefixed with an underscore e.g. _foo can not be dispatched to
+    using URLs but are listed in the dispatch table and are available to
+    the forward, detach and many other methods that might invoke an
+    action/method.
+
 =head1 HELPER METHODS
 
-=head1 CONTROL METHODS
+=head2 makeapp
 
-Most of the request processing is done for you automatically when the run method is
-encountered. Subsequently, the run method executes the start and finish routines
-which are responsible for handling the request and response objects.
-
-=head2 start
-
-The start method should probably be named (startup) because it is the method
-which configures the environment and performs various startup tasks.
+    This function is exported an intended to be called from the
+    command-line. This creates the boiler plate appication structure.
+    
+    # e.g. at the command line
+    perl -MSweetPea -e makeapp
 
 =cut
 
+=head2 controller
 
+    The action method returns the current requested MVC
+    controller/package.
+    
+    # user requested http://localhost/admin/auth
+    
+    $controller = $s->controller
+    # $controller is /admin
+    
+    $controller = $s->controller('services');
+    # $controller is /admin/services
+    
+    # maybe useful for saying
+    
+    $s->forward( $s->controller('services') );
+    # executes Controller::Admin::services()
 
+=cut
+
+=head2 action
+
+    The action method returns the current requested MVC
+    action.
+    
+    # user requested http://localhost/admin/auth
+    
+    $action = $s->action
+    # $action is auth if auth is an action, blank if not
+
+=cut
+
+=head2 url/uri
+
+    The url/uri methods returns a completed URI string
+    or reference to root, here or path variables, e.g.
+    
+    # user requested http://localhost/admin/auth
+    
+    my $link = $s->url('static/index.html');
+    # $link is http://localhost/static/index.html
+    
+    # $s->uri->{root} is http://localhost
+    # $s->uri->{here} is http://localhost/admin/auth
+    # $s->uri->{path} is /admin/auth
+
+=cut
+
+=head2 path
+
+    The path method returns a completed path to root
+    or location passed to the path method.
+    
+    # application lives at /domains/sweetapp
+    
+    my $path = $s->path;
+    # $path is /domains/sweetapp
+    
+    my $path = $s->path('static/index.html');
+    # $path is /domains/sweetapp/static/index.html
+
+=cut
+
+=head2 cookies
+
+    Returns an array of cookies set throughout the request.
+    ...
+    foreach my $cookie (@{$s->cookies}) {
+        # do something with the cookie data
+    }
+
+=cut
+
+=head1 CONTROL METHODS
+
+=head2 start
+
+    The start method should probably be named (startup) because
+    it is the method which processes the request and performs
+    various startup tasks.
+    
+    # is invoked automatically
+
+=cut
+
+=head2 finish
+
+    The finish method performs various tasks in processing the
+    response to the request.
+    
+    # is invoked automatically
+
+=cut
+
+=head2 forward
+
+    The forward method executes a method in a namespace,
+    then continues to execute instructions in the method it was
+    called from.
+    
+    # in Controller::Admin
+    sub auth {
+        my ($self, $s) = @_;
+        $s->forward('/admin/auth_success');
+        # now im doing something else
+    }
+    
+    sub auth_success {
+        my ($self, $s) = @_;
+        # im doing something
+    }
+    
+    using forward to here was inefficient, one could have used
+    $self->auth_success($s) because we are in the same package.
+
+=cut
+
+=head2 detach
+
+    The detach method executes a method in a namespace, then
+    immediately executes the special "_end" method which finalizes
+    the request.
+    
+    # in Controller::Admin
+    sub auth {
+        my ($self, $s) = @_;
+        $s->detach('/admin/auth_success');
+        # nothing after is executed
+    }
+    
+    sub auth_success {
+        my ($self, $s) = @_;
+        # im doing something
+    }
+    
+    using forward to here was inefficient, one could have used
+    $self->auth_success($s) because we are in the same package.
+
+=cut
+
+=head1 METHODS
+
+=head2 store
+
+    The store method is an accessor to the special "store"
+    hashref. The store hashref is the functional equivilent
+    of the stash method found in many other frameworks. It
+    serves as place developers can save and retreive information
+    throughout the request.
+    
+    $s->store->{important_stuff} = "This is top secret stuff";
+
+=cut
+
+=head2 application
+
+    The application method is in accessor to the special
+    "application" hashref. As the "store" hashref is where general
+    application data is stored, the "application" hashref is where
+    application configuration information is stored.
+    
+    $s->application->{content_type} = 'text/html';
+    
+    This is just an example, to change the content type please use
+    $s->contenttype('text/html');
+    Content-Type is always 'text/html' by default.
+
+=cut
+
+=head2 contenttype
+
+    The contenttype method set the desired output format for use
+    with http response headers.
+    
+    $s->contenttype('text/html');
+
+=cut
+
+=head2 html
+
+    The html method sets data to be output to the browser or if
+    called with no parameters returns the data recorded and
+    clears the data store.
+    
+    If the html store contains any data at the end of the request,
+    it is output to the browser.
+    
+    # in Controller::Root
+    sub _index {
+        my ($self, $s) = @_;
+        $s->html('this is a test');
+        $self->my_two_cents($s);
+    }
+    
+    sub my_two_cents {
+        my ($self, $s) = @_;
+        $s->html(', or maybe not');
+    }
+    
+    "this is a test, or maybe not" is output to the browser
+    
+    # in Controller::Root
+    
+    my @data;
+    
+    sub _index {
+        my ($self, $s) = @_;
+        $s->html('this is a test');
+        $self->forget_it($s);
+    }
+    
+    sub forget_it {
+        my ($self, $s) = @_;
+        @data = @{$s->html};
+    }
+    
+    Nothing is output to the browser as $s->html returns and
+    array of data stored in it and clears itself
+    
+    # @data contains ['this is a test','or maybe not']
+
+=cut
+
+=head2 debug
+
+    The debug method sets data to be output to the browser with
+    additional information for debugging purposes or if called
+    with no parameters returns the data recorded and clears the
+    data store. debug() is the functional equivilent of html()
+    but with a different purpose.
+
+=cut
+
+=head2 output
+
+    This method spits out html or debug information stored using
+    $s->html and/or $s->debug methods throughout the request. The
+    output method takes one argument, an entry seperator, which
+    if defined (empty or not) will output debug data, if not
+    explicitly defined will output html data.
+    
+    $s->output;
+    # outputs html data.
+    
+    $s->output(""); or $s->output("\n"); or $s->output("<br/>");
+    # outputs debug data.
+
+=cut
+
+=head2 plug
+
+    The plugin method creates accessors for third party (non-core)
+    modules, e.g.
+    
+    $self->plug('email', sub{ shift; return Email::Stuff->new(@_) });
+    
+    # allow you to to say
+    # in Controller::Root
+    
+    sub _index {
+        my ($self, $s) = @_;
+        $self->email->to(...)->from(...)->etc...
+    }
+    
+    
+    # NOTE! plugins should be defined within the plugins methods of
+    the App.pm package;
+
+=cut
+
+=head2 unplug
+
+    The unplug method releases the reference to the module object
+    used by the module accessor created by the plug method.
+    
+    # inside sweet/Controller/MyController.pm
+    sub _index {
+        my ($self, $s) = @_;
+        my $foo = $s->cpan;
+        my $bar = $s->cpan;
+        my $baz = $s->unplug('cpan')->cpan;
+    }
+    
+    # in the example above, $foo and $bar hold the same reference, but
+    $baz is holding a new refernce as if it called CPAN::Module->new;
+    as defined in the plugins method in App.pm
+
+=cut
 
 =head1 AUTHOR
 
