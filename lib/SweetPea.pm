@@ -1116,15 +1116,21 @@ I<pl>
 
 =head1 INSTANTIATION
 
+=head2 new
+
+    The new method initializes a new SweetPea object.
+    
+    # in your .pl or other index/router file
+    my $s = SweetPea->new;
+
 =head2 run
 
-    The new method initializes a new SweetPea object, the run method discovers
+    The run method discovers
     controllers and actions and executes internal pre and post request processing
     routines.
 
     # in your .pl or other index/router file
-    my $s = SweetPea->new;
-    $s->run; # start processing the request
+    my $s = SweetPea->new->run; # start processing the request
 
 =cut
 
