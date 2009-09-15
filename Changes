@@ -17,4 +17,4 @@ Revision history for SweetPea
         Added unplug method to re-initialize plugin accessors.
         Install requires CGI::Session.
 2.10    9/13/2009 12:12PM EST
-        
+        Rewrote entire POD for SweetPea.

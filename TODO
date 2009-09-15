@@ -7,3 +7,4 @@
 -   [-] Implement some sort of controller caching feature as support for auto-routes loading a large number of controllers.
 -   [x] Add an unplug method to clear and re-initialize plugin modules.
 -   [x] Add accessors for content-type, controller, action, ...
+-   [-] Write initial development tests.

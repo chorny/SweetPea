@@ -1,4 +1,4 @@
-SweetPea - - A web framework that doesn't get in the way, or suck.
+SweetPea - A web framework that doesn't get in the way, or suck.
 
 SweetPea is a modern web application framework that follows the MVC (Model,
 View, Controller) design pattern using useful concepts from Mojolicious, Catalyst

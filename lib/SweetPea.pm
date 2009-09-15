@@ -697,6 +697,7 @@ EOF
 1;
 
 __END__
+
 =head1 NAME
 
 SweetPea - A web framework that doesn't get in the way, or suck.
@@ -1056,10 +1057,14 @@ I<pl>
     fashion and thus, all controller methods should follow the
     same design as they are passed the same parameters.
     
-    sub foo {
+    package Controller::Foo;
+    
+    sub bar {
         my ($self, $s) = @_;
         ...
     }
+    
+    1;
     
     The foo method above (as well as al other controller methods)
     are passed at least two objects, an instance of the current
@@ -1131,6 +1136,11 @@ I<pl>
 
     # in your .pl or other index/router file
     my $s = SweetPea->new->run; # start processing the request
+    
+    NOTE! CGI, CGI::Cookie, and CGI::Session are plugged in automatically
+    by the run method.
+    
+    # accessible via $s->cgi, $s->cookie, and $s->session
 
 =cut
 
