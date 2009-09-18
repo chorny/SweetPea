@@ -18,3 +18,5 @@ Revision history for SweetPea
         Install requires CGI::Session.
 2.13    9/13/2009 12:12PM EST
         Rewrote entire POD for SweetPea.
+2.14    9/18/2009 4:47AM EST
+        Fixed bug with path method, added redirect method.

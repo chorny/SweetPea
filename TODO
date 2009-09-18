@@ -1,10 +1,15 @@
 # SweetPea Todo List
 
+-   [-] Add routes which provides extra security and replaces auto-routes (default) when called.
+-   [-] Implement a method to dump auto-routes table to an includable routes.pl file.
+-   [-] Write initial development tests.
+-   [-] Add demos/demo links to the documentation.
+-   [-] Add web application basic functions (discuss sessions, cookies, databases, etc) called GETTING STARTED (After Boiler-Plate)
+-   [x] Allow the path method to build paths also.
+-   [x] Make global _begin and _end methods run parallel to local _begin and _end
+-   [x] Desperate need of a redirect method
 -   [x] Refactor to use CGI only.
 -   [x] Add makeapp method to create application structure dynamically.
--   [-] Add routes which provides extra security and replaces auto-routes (default) when called.
 -   [x] Auto-initialize controllers which currently require a _new method to be utilized.
--   [-] Implement some sort of controller caching feature as support for auto-routes loading a large number of controllers.
 -   [x] Add an unplug method to clear and re-initialize plugin modules.
 -   [x] Add accessors for content-type, controller, action, ...
--   [-] Write initial development tests.

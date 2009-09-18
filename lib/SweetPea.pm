@@ -14,7 +14,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.13';
+our $VERSION = '2.14';
 
 sub new {
     my $class = shift;
@@ -214,20 +214,38 @@ sub _init_dispatcher {
     if ( ref($handler) eq "CODE" ) {
 
         #run user-defined begin routine or default to root begin
+        
+        # - was either or (global begin or local begin), now both,
+        # global then local
+        
+        # $dispatch{"$controller/_begin"}->($self)
+        #   if exists $dispatch{"$controller/_begin"};
+        # $dispatch{"/root/_begin"}->($self)
+        #   if exists $dispatch{"/root/_begin"}
+        #       && !$dispatch{"$controller/_begin"};
+        
+        $dispatch{"/root/_begin"}->($self)
+          if exists $dispatch{"/root/_begin"};
         $dispatch{"$controller/_begin"}->($self)
           if exists $dispatch{"$controller/_begin"};
-        $dispatch{"/root/_begin"}->($self)
-          if exists $dispatch{"/root/_begin"}
-              && !$dispatch{"$controller/_begin"};
 
         #run user-defined response routines
         $handler->($self);
 
         #run user-defined end routine or default to root end
+        
+        # - was either or (global end or local end), now both, global
+        # then local
+        
+        # $dispatch{"$controller/_end"}->($self)
+        #   if exists $dispatch{"$controller/_end"};
+        # $dispatch{"/root/_end"}->($self)
+        #   if exists $dispatch{"/root/_end"} && !$dispatch{"$controller/_end"};
+        
         $dispatch{"$controller/_end"}->($self)
           if exists $dispatch{"$controller/_end"};
         $dispatch{"/root/_end"}->($self)
-          if exists $dispatch{"/root/_end"} && !$dispatch{"$controller/_end"};
+          if exists $dispatch{"/root/_end"};
 
         #run pre-defined response routines
         $self->start();
@@ -295,6 +313,13 @@ sub detach {
     $self->finish();
 }
 
+sub redirect {
+    my ($self, $url) = shift;
+    $url = $self->url($url) unless $url =~ /^http/;
+    print $self->cgi->redirect($url);
+    exit;
+}
+
 sub store {
     my $self = shift;
     return $self->{store};
@@ -331,8 +356,8 @@ sub uri {
 
 sub path {
     my ( $self, $path ) = @_;
-    return $path ? $self->{store}->{application}->{'path'} :
-    $self->{store}->{application}->{'path'} . $path;
+    return $path ? $self->{store}->{application}->{'path'} . $path : 
+    $self->{store}->{application}->{'path'};
 }
 
 sub cookies {
@@ -704,7 +729,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.13
+Version 2.14
 
 =cut
 
@@ -1414,6 +1439,14 @@ I<pl>
     
     $s->output(""); or $s->output("\n"); or $s->output("<br/>");
     # outputs debug data.
+
+=cut
+
+=head2 redirect
+
+    This method redirects the request to the supplied url. If no url
+    is supplied, the request is redirected to the default page as defined
+    in your .htaccess or controller/Root.pm file.
 
 =cut
 

@@ -11,7 +11,6 @@ WriteMakefile(
     PL_FILES => {},
     PREREQ_PM => {
         'Test::More' => 0,
-        'Test::Pod::Coverage' => 0,
         'CGI' => 0,
         'CGI::Cookie' => 0,
         'CGI::Session' => 0,
