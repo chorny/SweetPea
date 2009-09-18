@@ -5,6 +5,7 @@
 -   [-] Write initial development tests.
 -   [-] Add demos/demo links to the documentation.
 -   [-] Add web application basic functions (discuss sessions, cookies, databases, etc) called GETTING STARTED (After Boiler-Plate)
+
 -   [x] Allow the path method to build paths also.
 -   [x] Make global _begin and _end methods run parallel to local _begin and _end
 -   [x] Desperate need of a redirect method

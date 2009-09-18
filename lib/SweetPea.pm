@@ -916,7 +916,7 @@ I<View::Main>
     package View::Main;
     use base Template;
     sub new {
-        return __PACKAGE__->e->new({
+        return __PACKAGE__->new({
         INCLUDE_PATH => 'sweet/templates/',
         EVAL_PERL    => 1,
         });
