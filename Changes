@@ -20,3 +20,7 @@ Revision history for SweetPea
         Rewrote entire POD for SweetPea.
 2.14    9/18/2009 4:47AM EST
         Fixed bug with path method, added redirect method.
+2.16    9/20/2009
+        Change how application structure is generated.
+        Updated plugins method.
+        Added makectrl, makemodl, and makeview as additional helper methods

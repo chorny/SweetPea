@@ -1,10 +1,11 @@
 package SweetPea;
 
 BEGIN {
+    use Config;
     use Exporter();
     use vars qw( @ISA @EXPORT @EXPORT_OK );
     @ISA    = qw( Exporter );
-    @EXPORT = qw(makeapp);
+    @EXPORT = qw(makeapp makectrl makeview makemodl makefile);
 }
 
 use CGI;
@@ -14,7 +15,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.14';
+our $VERSION = '2.16';
 
 sub new {
     my $class = shift;
@@ -213,39 +214,43 @@ sub _init_dispatcher {
 
     if ( ref($handler) eq "CODE" ) {
 
+        #run master _startup routine
+        $dispatch{"/root/_startup"}->($self)
+          if exists $dispatch{"/root/_startup"};
+        
         #run user-defined begin routine or default to root begin
         
-        # - was either or (global begin or local begin), now both,
-        # global then local
-        
-        # $dispatch{"$controller/_begin"}->($self)
-        #   if exists $dispatch{"$controller/_begin"};
-        # $dispatch{"/root/_begin"}->($self)
-        #   if exists $dispatch{"/root/_begin"}
-        #       && !$dispatch{"$controller/_begin"};
-        
-        $dispatch{"/root/_begin"}->($self)
-          if exists $dispatch{"/root/_begin"};
         $dispatch{"$controller/_begin"}->($self)
           if exists $dispatch{"$controller/_begin"};
+        $dispatch{"/root/_begin"}->($self)
+          if exists $dispatch{"/root/_begin"}
+              && !$dispatch{"$controller/_begin"};
+        
+        # run both as opposed to either or global or local
+        #$dispatch{"/root/_begin"}->($self)
+        #  if exists $dispatch{"/root/_begin"};
+        #$dispatch{"$controller/_begin"}->($self)
+        #  if exists $dispatch{"$controller/_begin"};
 
         #run user-defined response routines
         $handler->($self);
 
         #run user-defined end routine or default to root end
         
-        # - was either or (global end or local end), now both, global
-        # then local
-        
-        # $dispatch{"$controller/_end"}->($self)
-        #   if exists $dispatch{"$controller/_end"};
-        # $dispatch{"/root/_end"}->($self)
-        #   if exists $dispatch{"/root/_end"} && !$dispatch{"$controller/_end"};
-        
         $dispatch{"$controller/_end"}->($self)
           if exists $dispatch{"$controller/_end"};
         $dispatch{"/root/_end"}->($self)
-          if exists $dispatch{"/root/_end"};
+          if exists $dispatch{"/root/_end"} && !$dispatch{"$controller/_end"};
+        
+        # run both as opposed to either or global or local
+        #$dispatch{"$controller/_end"}->($self)
+        #  if exists $dispatch{"$controller/_end"};
+        #$dispatch{"/root/_end"}->($self)
+        #  if exists $dispatch{"/root/_end"};
+
+        #run master _shutdown routine
+        $dispatch{"/root/_shutdown"}->($self)
+          if exists $dispatch{"/root/_shutdown"};
 
         #run pre-defined response routines
         $self->start();
@@ -451,208 +456,233 @@ sub unplug {
 
 sub makeapp {
     my $path          = $FindBin::Bin;
-    my $app_structure = {
-        "$path/.htaccess" => <<'EOF'
-DirectoryIndex .pl
-AddHandler cgi-script .pl .pm .cgi
-Options +ExecCGI +FollowSymLinks -Indexes
-
-RewriteEngine On
-RewriteCond %{SCRIPT_FILENAME} !-d
-RewriteCond %{SCRIPT_FILENAME} !-f
-RewriteRule (.*) .pl/$1 [L]
-EOF
-        ,
-        "$path/.pl" => <<'EOF'
-#!/usr/bin/perl -w
-
-BEGIN {
-    use FindBin;
-    use lib $FindBin::Bin . '/sweet';
-    use lib $FindBin::Bin . '/sweet/application';
-}
-
-use SweetPea;
-use App;
-
-# run application
-SweetPea->new->run;
-EOF
-        ,
-        "$path/sweet/application/Controller/Root.pm" => <<'EOF'
-package Controller::Root;
-
-# Controller::Root - Root Controller / Landing Page (Should Exist)
-
-sub _begin {
-    my ( $self, $s ) = @_;
-}
-
-sub _index {
-    my ( $self, $s ) = @_;
-    $s->forward('/sweet/welcome');
-}
-
-sub _end {
-    my ( $self, $s ) = @_;
-}
-
-1;
-
-EOF
-        , "$path/sweet/application/Controller/Sweet.pm" => <<'EOF'
-package Controller::Sweet;
-
-# Controller::Sweet - SweetPea Introduction and Welcome Page
-# This function displays a simple information page the application defaults to before development.
-# This module should be removed before development.
-
-sub welcome {
-    my ( $self, $s ) = @_;
-
-    #header
-    $s->html(
-	qq`
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-	<title>SweetPea is Alive and Well - SweetPea, the PnP Perl Web Application Framework</title>
-`
-    );
-
-    #stylesheet
-    $s->html(
-	qq`
-	<style type="text/css">
-	    body
-	    {
-		font-family:    Bitstream Vera Sans,Trebuchet MS,Verdana,Tahoma,Arial,helvetica,sans-serif;
-		color:          #818F08;
-	    }
-	    h1
-	    {
-		background-color:#818F08;
-		color:#FFFFFF;
-		display:block;
-		font-size:0.85em;
-		font-weight:normal;
-		left:0;
-		padding-bottom:10px;
-		padding-left:15px;
-		padding-right:10px;
-		padding-top:10px;
-		position:absolute;
-		right:0;
-		top:0;
-		margin: 0px;
-	    }
-	    h2
-	    {
-		background-color:#EFEEEE;
-		font-size:1em;
-		padding-bottom:5px;
-		padding-left:5px;
-		padding-right:5px;
-		padding-top:5px;
-	    }
-	    #container
-	    {
-		position:absolute;
-		font-size:0.8em;
-		font-weight:normal;
-		padding-bottom:10px;
-		padding-left:15px;
-		padding-right:10px;
-		padding-top:10px;
-		left:0;
-		right:0;
-		top:40px;
-	    }
-	    .issue
-	    {
-		color: #FF0000;
-	    }
-	    .highlight
-	    {
-		background-color:#EFEEEE;
-		padding:1px;
-	    }
-	</style>
-    </head>
-    <body>
-    <h1>Welcome Young GrassHopper, SweetPea is working.</h1>
-    <div id="container">
-`
-    );
-
-    # body
-    my $path = $s->application->{path};
-    $s->html("<div class=\"section\">");
-    $s->html("<h2>Application Details</h2>");
-    $s->html("<span>SweetPea is running under Perl <span class=\"highlight\">$]
-    </span> and is located at <span class=\"highlight\">$path</span></span><br/>"
-    );
-    $s->html("</div>");
-    $s->html(
-	qq`
-    </div>
-    </body>
-</html>
-`
-    );
-
-}
-
-1;
-
-EOF
-        , "$path/sweet/application/Model/Schema.pm" => <<'EOF'
-package Model::Schema;
-use strict;
-use warnings;
-
-1;
-
-EOF
-        , "$path/sweet/application/View/Main.pm" => <<'EOF'
-package View::Main;
-use strict;
-use warnings;
-
-1;
-
-EOF
-        , "$path/sweet/App.pm" => <<'EOF'
-package App;
-
-use warnings;
-use strict;
-
-# App - This module loads all third party modules and provides accessors to the calling module!
-
-sub plugins {
-    my ( $class, $base ) = @_;
-    my $self = bless {}, $class;
-
-    # load modules using the following procedure, they will be available to
-    # the application as $s->nameofobject.
-    # Note! Please use this section to add non-core plugins/modules.
-
-    # e.g. $base->plug( 'view', sub { return View::Main->new(...) } );
-
-    return $self;
-}
-
-1;    # End of App
-
-EOF
-        ,
-        "$path/sweet/sessions"  => "",
-        "$path/sweet/templates" => "",
-        "$path/static"          => "",
-
-    };
+    my $app_structure = {};
+    
+    #htaccess file
+    $app_structure->{"$path/.htaccess"} = ""
+    . 'DirectoryIndex .pl' . "\n"
+    . 'AddHandler cgi-script .pl .pm .cgi' . "\n"
+    . 'Options +ExecCGI +FollowSymLinks -Indexes' . "\n"
+    . '' . "\n"
+    . 'RewriteEngine On' . "\n"
+    . 'RewriteCond %{SCRIPT_FILENAME} !-d' . "\n"
+    . 'RewriteCond %{SCRIPT_FILENAME} !-f' . "\n"
+    . 'RewriteRule (.*) .pl/$1 [L]' . "\n"
+    . "";
+    
+    #router file
+    $app_structure->{"$path/.pl"} = ""
+    . '#!'. $Config{perlpath} .' -w' . "\n"
+    . '' . "\n"
+    . 'BEGIN {' . "\n"
+    . '    use FindBin;' . "\n"
+    . '    use lib $FindBin::Bin . \'/sweet\';' . "\n"
+    . '    use lib $FindBin::Bin . \'/sweet/application\';' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . 'use SweetPea;' . "\n"
+    . 'use App;' . "\n"
+    . '' . "\n"
+    . '# run application' . "\n"
+    . 'SweetPea->new->run;' . "\n"
+    . "";
+    
+    #default controller
+    $app_structure->{"$path/sweet/application/Controller/Root.pm"} = ""
+    . 'package Controller::Root;' . "\n"
+    . '' . "\n"
+    . '=head1 NAME' . "\n"
+    . '' . "\n"
+    . 'Controller::Root - Root Controller / Landing Page (Should Exist).' . "\n"
+    . '' . "\n"
+    . '=cut' . "\n"
+    . '' . "\n"
+    . 'sub _startup {' . "\n"
+    . '    my ( $self, $s ) = @_;' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . 'sub _begin {' . "\n"
+    . '    my ( $self, $s ) = @_;' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . 'sub _index {' . "\n"
+    . '    my ( $self, $s ) = @_;' . "\n"
+    . '    $s->forward(\'/sweet/welcome\');' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . 'sub _end {' . "\n"
+    . '    my ( $self, $s ) = @_;' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . 'sub _shutdown {' . "\n"
+    . '    my ( $self, $s ) = @_;' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . '1;' . "\n"
+    . '' . "\n"
+    . "";
+    
+    #temporary welcome page
+    $app_structure->{"$path/sweet/application/Controller/Sweet.pm"} = ""
+    . 'package Controller::Sweet;' . "\n"
+    . '' . "\n"
+    . '=head1 NAME' . "\n"
+    . '' . "\n"
+    . 'Controller::Sweet - SweetPea Introduction and Welcome Page.' . "\n"
+    . '' . "\n"
+    . '=cut' . "\n"
+    . '' . "\n"
+    . '=head1 DESCRIPTION' . "\n"
+    . '' . "\n"
+    . 'This function displays a simple information page the application defaults to before development.' . "\n"
+    . 'This module should be removed before development.' . "\n"
+    . '' . "\n"
+    . '=cut' . "\n"
+    . '' . "\n"
+    . 'sub welcome {' . "\n"
+    . '    my ( $self, $s ) = @_;' . "\n"
+    . '    my @html = ();' . "\n"
+    . '' . "\n"
+    . '    #header' . "\n"
+    . '    push @html, "<!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">\n";' . "\n"
+    . '    push @html, "<html xmlns=\\"http://www.w3.org/1999/xhtml\\">\n";' . "\n"
+    . '    push @html, "    <head>\n";' . "\n"
+    . '    push @html, "	<meta http-equiv=\\"Content-Type\\" content=\\"text/html; charset=utf-8\\" />\n";' . "\n"
+    . '    push @html, "	<title>SweetPea is Alive and Well - SweetPea, the PnP Perl Web Application Framework</title>\n";' . "\n"
+    . '' . "\n"
+    . '    #stylesheet' . "\n"
+    . '    push @html, "<style type=\\"text/css\\">\n";' . "\n"
+    . '    push @html, "	    body\n";' . "\n"
+    . '    push @html, "	    {\n";' . "\n"
+    . '    push @html, "		font-family:    Bitstream Vera Sans,Trebuchet MS,Verdana,Tahoma,Arial,helvetica,sans-serif;\n";' . "\n"
+    . '    push @html, "		color:          #818F08;\n";' . "\n"
+    . '    push @html, "	    }\n";' . "\n"
+    . '    push @html, "	    h1\n";' . "\n"
+    . '    push @html, "	    {\n";' . "\n"
+    . '    push @html, "		background-color:#818F08;\n";' . "\n"
+    . '    push @html, "		color:#FFFFFF;\n";' . "\n"
+    . '    push @html, "		display:block;\n";' . "\n"
+    . '    push @html, "		font-size:0.85em;\n";' . "\n"
+    . '    push @html, "		font-weight:normal;\n";' . "\n"
+    . '    push @html, "		left:0;\n";' . "\n"
+    . '    push @html, "		padding-bottom:10px;\n";' . "\n"
+    . '    push @html, "		padding-left:15px;\n";' . "\n"
+    . '    push @html, "		padding-right:10px;\n";' . "\n"
+    . '    push @html, "		padding-top:10px;\n";' . "\n"
+    . '    push @html, "		position:absolute;\n";' . "\n"
+    . '    push @html, "		right:0;\n";' . "\n"
+    . '    push @html, "		top:0;\n";' . "\n"
+    . '    push @html, "		margin: 0px;\n";' . "\n"
+    . '    push @html, "	    }\n";' . "\n"
+    . '    push @html, "	    h2\n";' . "\n"
+    . '    push @html, "	    {\n";' . "\n"
+    . '    push @html, "		background-color:#EFEEEE;\n";' . "\n"
+    . '    push @html, "		font-size:1em;\n";' . "\n"
+    . '    push @html, "		padding-bottom:5px;\n";' . "\n"
+    . '    push @html, "		padding-left:5px;\n";' . "\n"
+    . '    push @html, "		padding-right:5px;\n";' . "\n"
+    . '    push @html, "		padding-top:5px;\n";' . "\n"
+    . '    push @html, "	    }\n";' . "\n"
+    . '    push @html, "	    #container\n";' . "\n"
+    . '    push @html, "	    {\n";' . "\n"
+    . '    push @html, "		position:absolute;\n";' . "\n"
+    . '    push @html, "		font-size:0.8em;\n";' . "\n"
+    . '    push @html, "		font-weight:normal;\n";' . "\n"
+    . '    push @html, "		padding-bottom:10px;\n";' . "\n"
+    . '    push @html, "		padding-left:15px;\n";' . "\n"
+    . '    push @html, "		padding-right:10px;\n";' . "\n"
+    . '    push @html, "		padding-top:10px;\n";' . "\n"
+    . '    push @html, "		left:0;\n";' . "\n"
+    . '    push @html, "		right:0;\n";' . "\n"
+    . '    push @html, "		top:40px;\n";' . "\n"
+    . '    push @html, "	    }\n";' . "\n"
+    . '    push @html, "	    .issue\n";' . "\n"
+    . '    push @html, "	    {\n";' . "\n"
+    . '    push @html, "		color: #FF0000;\n";' . "\n"
+    . '    push @html, "	    }\n";' . "\n"
+    . '    push @html, "	    .highlight\n";' . "\n"
+    . '    push @html, "	    {\n";' . "\n"
+    . '    push @html, "		background-color:#EFEEEE;\n";' . "\n"
+    . '    push @html, "		padding:1px;\n";' . "\n"
+    . '    push @html, "	    }\n";' . "\n"
+    . '    push @html, "	</style>\n";' . "\n"
+    . '' . "\n"
+    . '    # body' . "\n"
+    . '    my $path = $s->application->{path};' . "\n"
+    . '' . "\n"
+    . '    push @html, "    </head>\n";' . "\n"
+    . '    push @html, "    <body>\n";' . "\n"
+    . '    push @html, "    <h1>Welcome Young GrassHopper, SweetPea is working.</h1>\n";' . "\n"
+    . '    push @html, "    <div id=\\"container\\">\n";' . "\n"
+    . '    push @html, "	<div class=\\"section\\">\n";' . "\n"
+    . '    push @html, "	<h2>Application Details</h2>\n";' . "\n"
+    . '    push @html, "	<span>SweetPea is running under Perl <span class=\\"highlight\\">$]</span> and is located at <span class=\\"highlight\\">$path</span></span><br/>\n";' . "\n"
+    . '    push @html, "	</div>\n";' . "\n"
+    . '    push @html, "    </div>\n";' . "\n"
+    . '    push @html, "    </body>\n";' . "\n"
+    . '    push @html, "</html>\n";' . "\n"
+    . '' . "\n"
+    . '    $s->html(join("", @html));' . "\n"
+    . '' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . '1;' . "\n"
+    . '' . "\n"
+    . "";
+    
+    # base model class
+    $app_structure->{"$path/sweet/application/Model/Schema.pm"} = ""
+    . 'package Model::Schema;' . "\n"
+    . 'use strict;' . "\n"
+    . 'use warnings;' . "\n"
+    . '' . "\n"
+    . '1;' . "\n"
+    . '' . "\n"
+    . "";
+    
+    # base view class
+    $app_structure->{"$path/sweet/application/View/Main.pm"} = ""
+    . 'package View::Main;' . "\n"
+    . 'use strict;' . "\n"
+    . 'use warnings;' . "\n"
+    . '' . "\n"
+    . '1;' . "\n"
+    . '' . "\n"
+    . "";    
+    
+    $app_structure->{"$path/sweet/App.pm"} = ""
+    . 'package App;' . "\n"
+    . '' . "\n"
+    . 'use warnings;' . "\n"
+    . 'use strict;' . "\n"
+    . '' . "\n"
+    . '=head1 NAME' . "\n"
+    . '' . "\n"
+    . 'App - Loads modules and provides accessors to SweetPea.' . "\n"
+    . '' . "\n"
+    . '=cut' . "\n"
+    . '' . "\n"
+    . 'sub plugins {' . "\n"
+    . '    my $s = pop @_;' . "\n"
+    . '' . "\n"
+    . '    # load modules using the following procedure, they will be available to' . "\n"
+    . '    # the application as $s->nameofobject.' . "\n"
+    . '' . "\n"
+    . '    # Note! CGI (cgi), CGI::Cookie (cookie), and CGI::Session (session) ' . "\n"
+    . '    # plugins/modules are pre-loaded and available. ' . "\n"
+    . '' . "\n"
+    . '    # e.g. $s->plug( \'nameofobject\', sub { shift; return Module::Name->new(@_) } );' . "\n"
+    . '' . "\n"
+    . '    return $s;' . "\n"
+    . '}' . "\n"
+    . '' . "\n"
+    . '1;    # End of App' . "\n"
+    . '' . "\n"
+    . "";
+    
+    $app_structure->{"$path/sweet/sessions"}  = "";
+    $app_structure->{"$path/sweet/templates"} = "";
+    $app_structure->{"$path/static"}          = "";
 
     # make application structure
     foreach my $fod ( keys %{$app_structure} ) {
@@ -672,9 +702,9 @@ EOF
                         open IN, ">$path$fod" || die "Can't create $file, $!";
                         print IN $app_structure->{"$path$fod"};
                         close IN;
-                        my $mode = ($fod =~ /App\.pm/) ? '0755' : '0754';
+                        my $mode = '0755';
                         chmod $mode, "$path$fod";
-                        print "Created file $fod (chmod 754) ...\n";
+                        print "Created file $fod (chmod 755) ...\n";
                     }
                     else {
                         open IN, ">$path$fod" || die "Can't create $file, $!";
@@ -700,23 +730,227 @@ EOF
                     my $fpath = $path;
                     foreach (@folders) {
                         $fpath .= "$_/";
-                        mkdir( $fpath, 0754 ) if $fpath =~ /sweet/;
-
-             #print "Created dir $fpath (chmod 754) ...\n" if $fpath =~ /sweet/;
-                        mkdir( $fpath, 0755 ) if $fpath !~ /sweet/;
-
-             #print "Created dir $fpath (chmod 755) ...\n" if $fpath !~ /sweet/;
+                        mkdir( $fpath, 0755 );
                     }
                 }
                 else {
                     mkdir( $path, 0755 );
-
-                    #print "Created dir $path (chmod 755) ...\n";
                 }
             }
         }
     }
+    # secure sessions, and templates folders
+    chmod 0700, "$path/sweet/sessions";
+    chmod 0700, "$path/sweet/templates";
+}
 
+sub makemodl {
+    my $data = shift;
+    my $controller = (shift @ARGV) || shift;
+    my $syntax = 'Please use, perl -MSweetPea -e makemodl model/name';
+    my $root_path = "$FindBin::Bin/sweet/application/Model/";
+    my ($module_name, $module_path) = ();
+    $controller =~ s/\.pm$//;
+    $controller =~ s/[a-zA-Z0-9]\://g;
+    if ( $controller ) {
+        if ($controller =~ /[\:\\\/\-]/) {
+            my @folders = split /[\:\\\/\-]/, $controller;
+            @folders = map( ucfirst, @folders );
+            $module_name = "Model::" . join( "::", @folders );
+            $controller = pop( @folders ) . ".pm";
+            # make folders
+            foreach my $path (@folders) {
+                unless( -e "$root_path$path" ) {
+                    mkdir "$root_path$path";
+                    chmod 0755, "$root_path$path";
+                }
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_name = "Model::" . ucfirst $controller;
+            $module_path = $root_path . ucfirst ( $controller ) . ".pm";
+        }
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "package $module_name;\n";
+            print FILE "\n";
+            print FILE "=head1 NAME\n";
+            print FILE "\n";
+            print FILE "$module_name - Model Description.\n";
+            print FILE "\n";
+            print FILE "=cut\n";
+            print FILE "\n";
+            print FILE "$data\n" if $data;
+            print FILE "\n";
+            print FILE "1;";
+            close FILE;
+        }
+        else {
+            exit warn "$module_path already exists!\n";
+        }
+    }
+    else {
+        print "Failed making model.\n", $syntax;
+        exit;
+    }
+}
+
+sub makectrl {
+    my $data = shift;
+    my $controller = (shift @ARGV) || shift;
+    my $syntax = 'Please use, perl -MSweetPea -e makectrl module/name';
+    my $root_path = "$FindBin::Bin/sweet/application/Controller/";
+    my ($module_name, $module_path) = ();
+    $controller =~ s/\.pm$//;
+    $controller =~ s/[a-zA-Z0-9]\://g;
+    if ( $controller ) {
+        if ($controller =~ /[\:\\\/\-]/) {
+            my @folders = split /[\:\\\/\-]/, $controller;
+            @folders = map( ucfirst, @folders );
+            $module_name = "Controller::" . join( "::", @folders );
+            $controller = pop( @folders ) . ".pm";
+            # make folders
+            foreach my $path (@folders) {
+                unless( -e "$root_path$path" ) {
+                    mkdir "$root_path$path";
+                    chmod 0755, "$root_path$path";
+                }
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_name = "Controller::" . ucfirst $controller;
+            $module_path = $root_path . ucfirst ( $controller ) . ".pm";
+        }
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "package $module_name;\n";
+            print FILE "\n";
+            print FILE "=head1 NAME\n";
+            print FILE "\n";
+            print FILE "$module_name - Controller Description.\n";
+            print FILE "\n";
+            print FILE "=cut\n";
+            print FILE "\n";
+            print FILE "sub _begin {\n";
+            print FILE "    my ( \$self, \$s ) = \@_;\n";
+            print FILE "}\n";
+            print FILE "\n";
+            print FILE "sub _index {\n";
+            print FILE "    my ( \$self, \$s ) = \@_;\n";
+            print FILE "}\n";
+            print FILE "\n";
+            print FILE "sub _end {\n";
+            print FILE "    my ( \$self, \$s ) = \@_;\n";
+            print FILE "}\n";
+            print FILE "\n";
+            print FILE "$data\n" if $data;
+            print FILE "\n";
+            print FILE "1;";
+            close FILE;
+        }
+        else {
+            exit warn "$module_path already exists!\n";
+        }
+    }
+    else {
+        print "Failed making controller.\n", $syntax;
+        exit;
+    }
+}
+
+sub makeview {
+    my $data = shift;
+    my $controller = (shift @ARGV) || shift;
+    my $syntax = 'Please use, perl -MSweetPea -e makeview view/name';
+    my $root_path = "$FindBin::Bin/sweet/application/View/";
+    my ($module_name, $module_path) = ();
+    $controller =~ s/\.pm$//;
+    $controller =~ s/[a-zA-Z0-9]\://g;
+    if ( $controller ) {
+        if ($controller =~ /[\:\\\/\-]/) {
+            my @folders = split /[\:\\\/\-]/, $controller;
+            @folders = map( ucfirst, @folders );
+            $module_name = "View::" . join( "::", @folders );
+            $controller = pop( @folders ) . ".pm";
+            # make folders
+            foreach my $path (@folders) {
+                unless( -e "$root_path$path" ) {
+                    mkdir "$root_path$path";
+                    chmod 0755, "$root_path$path";
+                }
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_name = "View::" . ucfirst $controller;
+            $module_path = $root_path . ucfirst ( $controller ) . ".pm";
+        }
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "package $module_name;\n";
+            print FILE "\n";
+            print FILE "=head1 NAME\n";
+            print FILE "\n";
+            print FILE "$module_name - View Description.\n";
+            print FILE "\n";
+            print FILE "=cut\n";
+            print FILE "\n";
+            print FILE "$data\n" if $data;
+            print FILE "\n";
+            print FILE "1;";
+            close FILE;
+        }
+        else {
+            exit warn "$module_path already exists!\n";
+        }
+    }
+    else {
+        print "Failed making view.\n", $syntax;
+        exit;
+    }
+}
+
+sub makefile {
+    my $data = shift;
+    my $controller = (shift @ARGV) || shift;
+    my $syntax = 'Please use, perl -MSweetPea -e makefile filename';
+    my $root_path = "$FindBin::Bin/";
+    my ($module_name, $module_path) = ();
+    if ( $controller ) {
+        if ($controller =~ /[\\\/\-]/) {
+            my @folders = split /[\\\/\-]/, $controller;
+            $controller = pop( @folders );
+            # make folders
+            foreach my $path (@folders) {
+                unless( -e "$root_path$path" ) {
+                    mkdir "$root_path$path";
+                    chmod 0755, "$root_path$path";
+                }
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_path = $root_path . $controller;
+        }
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "$data\n" if $data;
+            close FILE;
+        }
+        else {
+            exit warn "$module_path already exists!\n";
+        }
+    }
+    else {
+        print "Failed making file.\n", $syntax;
+        exit;
+    }
 }
 
 1;
@@ -729,7 +963,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.14
+Version 2.16
 
 =cut
 
@@ -847,11 +1081,17 @@ I<Controller::Root>
     the (global) alternative found in the Controller::Root namespace will
     be used.
 
+    The _startup method is a special global method that cannot be overridden
+    and is executed first with each request. The _shutdown is executed last
+    and cannot be overridden either.
+
     # Controller::RootRoot.pm
     package Controller::Root;
+    sub _startup { my ( $self, $s ) = @_; }
     sub _begin { my ( $self, $s ) = @_; }
     sub _index { my ( $self, $s ) = @_; }
     sub _end { my ( $self, $s ) = @_; }
+    sub _shutdown { my ( $self, $s ) = @_; }
     1;
 
 =head2 sweet/application/Controller/Sweet.pm
@@ -881,7 +1121,8 @@ I<Model::Schema>
     # in App.pm
     use Model::Schema;
     sub plugins {
-        $base->plug('data', sub { shift; return Model::Schema->new(@_) });
+        ...
+        $s->plug('data', sub { shift; return Model::Schema->new(@_) });
     }
     
     # example usage in Controller/Root.pm
@@ -926,7 +1167,8 @@ I<View::Main>
     # in App.pm
     use View::Main;
     sub plugins {
-        $base->plug('view', sub{ shift; return View::Main->new(@_) });
+        ...
+        $s->plug('view', sub{ shift; return View::Main->new(@_) });
     }
     
     # example usage in Controller/Root.pm
@@ -956,13 +1198,13 @@ I<App>
     use View::Main;
     
     sub plugins {
-        my ( $class, $base ) = @_;
+        my ( $class, $s ) = @_;
         my $self = bless {}, $class;
-        $base->plug( 'form', sub { shift; return HTML::FormFu->new(@_) } );
-        $base->plug( 'data', sub { shift; return Model::Schema->new(@_) } );
-        $base->plug( 'view', sub { shift; return View::Main->new(@_) } );
-        $base->plug( 'grid', sub { shift; return HTML::GridFu->new(@_) } );
-        return $self;
+        $s->plug( 'form', sub { shift; return HTML::FormFu->new(@_) } );
+        $s->plug( 'data', sub { shift; return Model::Schema->new(@_) } );
+        $s->plug( 'view', sub { shift; return View::Main->new(@_) } );
+        $s->plug( 'grid', sub { shift; return HTML::GridFu->new(@_) } );
+        return $s;
     }
     1;    # End of App
 
@@ -1012,6 +1254,13 @@ I<pl>
 
 
 =head1 SPECIAL ROUTINES
+
+=head2 _startup
+
+    # _startup
+    sub _startup {...}
+    The _startup method is a special global method that cannot be overridden
+    and is executed before any other methods automatically with each request.
 
 =head2 _begin
 
@@ -1073,6 +1322,12 @@ I<pl>
     This special method is useful for performing cleanup
     functions at the end of a request.
 
+=head2 _shutdown
+
+    # _shutdown
+    sub _shutdown {...}
+    The _shutdown method is a special global method that cannot be overridden
+    and is executed after all other methods automatically with each request.
 
 =head1 RULES AND SYNTAX
 
@@ -1112,10 +1367,9 @@ I<pl>
     use CPAN::Module;
     
     sub plugins {
-        my ( $class, $base ) = @_;
-        my $self = bless {}, $class;
-        $base->plug( 'cpan', sub { shift; return CPAN::Module->new(@_) } );
-        return $self;
+        ...
+        $s->plug( 'cpan', sub { shift; return CPAN::Module->new(@_) } );
+        return $s;
     }
     ...
     
@@ -1181,7 +1435,11 @@ I<pl>
     the forward, detach and many other methods that might invoke an
     action/method.
 
-=head1 HELPER METHODS
+=head1 RAD METHODS
+
+RAD (Rapid Application Development) methods assist in the creation
+of common files, objects and funtionality. These methods reduce the tedium
+that comes with creating web applications models, views and controllers.
 
 =head2 makeapp
 
@@ -1190,8 +1448,83 @@ I<pl>
     
     # e.g. at the command line
     perl -MSweetPea -e makeapp
+    > Created file /sweet/App.pm (chmod 755) ...
+    > Created file /.pl (chmod 755) ...
+    > Created file /.htaccess (chmod 755) ...
+    > Creat....
+    > ...
 
 =cut
+
+=head2 makectrl
+
+    This function is exported an intended to be called from the
+    command-line. This method creates a controller with a boiler plate structure
+    and global begin, index, and end methods.
+    
+    # e.g. at the command line
+    perl -MSweetPea -e makectrl admin/auth
+    > Created file /sweet/application/Controller/Admin/Auth.pm (chmod 755) ...
+
+=cut
+
+=head2 makemodl
+
+    This function is exported an intended to be called from the
+    command-line. This method creates a model with a boiler plate structure.
+    
+    # e.g. at the command line
+    perl -MSweetPea -e makemodl csv/upload
+    > Created file /sweet/application/Model/Csv/Upload.pm (chmod 755) ...
+
+=cut
+
+=head2 makeview
+
+    This function is exported an intended to be called from the
+    command-line. This method creates a view with a boiler plate structure.
+    
+    # e.g. at the command line
+    perl -MSweetPea -e makeview email/html
+    > Created file /sweet/application/View/Email/Html.pm (chmod 755) ...
+
+=cut
+
+=head2 makefile
+
+    This function is exported an intended to be called from the
+    command-line. This creates a file anywhere within the current
+    application's structure. This method is useful for application
+    styling which is not yet fully implemented (see Application Styling).
+    
+    # e.g. at the command line
+    perl -MSweetPea -e makefile test.pl
+    > Created file test.pl (chmod 755) ...
+
+=cut
+
+=head1 APPLICATION STYLING
+
+    Application Styling, not yet implemented, is a form of user/community
+    defined scaffolding which allows SweetPea developers to extend
+    RAD (Rapid Application Development) functionality using the core
+    helper methods (see Helper Methods). These scaffolding templates will be
+    accessible via the SweetPea::Style::MyStyle namespace.
+    
+    e.g. SweetPea::Style::Default
+    package SweetPea::Style::Default;
+    use SweetPea;
+    
+    sub makemodl {
+    my $sub = 'sub process {...}';
+        SweetPea::makemodl( $sub, 'schema/foo' );
+    }
+    
+    # More information be be made available soon.
+
+=cut
+
+=head1 HELPER METHODS
 
 =head2 controller
 
