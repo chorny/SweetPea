@@ -15,7 +15,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.16';
+our $VERSION = '2.17';
 
 sub new {
     my $class = shift;
@@ -271,7 +271,7 @@ sub start {
     my $self = shift;
 
     # handle session
-    if ( defined $self->{'.session'} ) {
+    if ( defined $self->session ) {
         $self->session->expire();
         $self->cookie(
             -name  => $self->session->name,
@@ -963,7 +963,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.16
+Version 2.17
 
 =cut
 
