@@ -15,7 +15,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.18';
+our $VERSION = '2.19';
 
 sub new {
     my $class = shift;
@@ -64,26 +64,23 @@ sub _plugins {
         }
     );
 
-    eval 'use CGI::Session';
-    warn 'It looks like you don\'t have CGI::Session installed.' if $@;
-    unless ($@) {
-        $self->plug(
-            'session',
-            sub {
-                my $self = shift;
-                my $cgis = CGI::Session->new(
-                    "driver:file",
-                    undef,
-                    {
-                        Directory => $self->application->{path}
-                          . '/sweet/sessions'
-                    }
-                );
-                $cgis->name("SID");
-                return $cgis;
-            }
-        );
-    }
+    $self->plug(
+        'session',
+        sub {
+            my $self = shift;
+            CGI::Session->name("SID");
+            my $sess = CGI::Session->new(
+                "driver:file",
+                undef,
+                {
+                    Directory => $self->application->{path}
+                      . '/sweet/sessions'
+                }
+            );
+            $sess->flush;
+            return $sess;
+        }
+    );
 
     # load non-core plugins from App.pm
     App->plugins($self);
@@ -272,7 +269,10 @@ sub start {
 
     # handle session
     if ( defined $self->session ) {
-        $self->session->expire();
+        $self->session->expire(
+            defined $self->application->{session}->{expiration} ?
+            $self->application->{session}->{expiration} : '1h'
+        );
         $self->cookie(
             -name  => $self->session->name,
             -value => $self->session->id
@@ -295,7 +295,7 @@ sub finish {
     }
 
     # commit session changes if a session has been created
-    $self->session->flush() if defined $self->{'.session'};
+    $self->session->flush();
 }
 
 sub forward {
@@ -969,7 +969,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.18
+Version 2.19
 
 =cut
 
@@ -1526,7 +1526,7 @@ that comes with creating web applications models, views and controllers.
         SweetPea::makemodl( $sub, 'schema/foo' );
     }
     
-    # More information be be made available soon.
+    # More information will be made available soon.
 
 =cut
 

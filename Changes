@@ -28,3 +28,5 @@ Revision history for SweetPea
         Fixed critical session creation bug.
 2.18    9/21/2009 9:07AM EST
         Fixed foward, detach, redirect, makemodl, makectrl, makeview, and makefile methods.
+2.19    9/21/2009 4:30PM EST
+        Fixed critical session creation routine in the start and _plugins methods.
