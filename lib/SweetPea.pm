@@ -15,7 +15,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.17';
+our $VERSION = '2.18';
 
 sub new {
     my $class = shift;
@@ -304,22 +304,20 @@ sub forward {
     #get actions
     my %dispatch = %{ $self->_load_path_and_actions() };
 
-    #run requested routines
-    $dispatch{"$path/_begin"}->( $self, $class )
-      if exists $dispatch{"$path/_begin"};
+    #run requested routine
     $dispatch{"$path"}->( $self, $class ) if exists $dispatch{"$path"};
-    $dispatch{"$path/_end"}->( $self, $class )
-      if exists $dispatch{"$path/_end"};
 }
 
 sub detach {
     my ( $self, $path, $class ) = @_;
     $self->forward( $path, $class );
+    $self->start();
     $self->finish();
+    exit;
 }
 
 sub redirect {
-    my ($self, $url) = shift;
+    my ($self, $url) = @_;
     $url = $self->url($url) unless $url =~ /^http/;
     print $self->cgi->redirect($url);
     exit;
@@ -759,11 +757,13 @@ sub makemodl {
             $module_name = "Model::" . join( "::", @folders );
             $controller = pop( @folders ) . ".pm";
             # make folders
+            my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$root_path$path" ) {
-                    mkdir "$root_path$path";
-                    chmod 0755, "$root_path$path";
+                unless( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
                 }
+                $tpath = "$tpath$path/"; 
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
@@ -812,11 +812,13 @@ sub makectrl {
             $module_name = "Controller::" . join( "::", @folders );
             $controller = pop( @folders ) . ".pm";
             # make folders
+            my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$root_path$path" ) {
-                    mkdir "$root_path$path";
-                    chmod 0755, "$root_path$path";
+                unless( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
                 }
+                $tpath = "$tpath$path/"; 
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
@@ -877,11 +879,13 @@ sub makeview {
             $module_name = "View::" . join( "::", @folders );
             $controller = pop( @folders ) . ".pm";
             # make folders
+            my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$root_path$path" ) {
-                    mkdir "$root_path$path";
-                    chmod 0755, "$root_path$path";
+                unless( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
                 }
+                $tpath = "$tpath$path/"; 
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
@@ -926,11 +930,13 @@ sub makefile {
             my @folders = split /[\\\/\-]/, $controller;
             $controller = pop( @folders );
             # make folders
+            my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$root_path$path" ) {
-                    mkdir "$root_path$path";
-                    chmod 0755, "$root_path$path";
+                unless( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
                 }
+                $tpath = "$tpath$path/"; 
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
@@ -963,7 +969,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.17
+Version 2.18
 
 =cut
 

@@ -26,3 +26,5 @@ Revision history for SweetPea
         Added makectrl, makemodl, and makeview as additional helper methods.
 2.17    9/20/2009 8:18PM EST
         Fixed critical session creation bug.
+2.18    9/21/2009 9:07AM EST
+        Fixed foward, detach, redirect, makemodl, makectrl, makeview, and makefile methods.
