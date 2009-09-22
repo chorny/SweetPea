@@ -30,3 +30,4 @@ Revision history for SweetPea
         Fixed foward, detach, redirect, makemodl, makectrl, makeview, and makefile methods.
 2.19    9/21/2009 4:30PM EST
         Fixed critical session creation routine in the start and _plugins methods.
+        Added flash and request_method methods.

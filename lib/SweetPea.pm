@@ -333,9 +333,13 @@ sub application {
     return $self->{store}->{application};
 }
 
-sub contenttype {
+sub content_type {
     my ( $self, $type ) = @_;
     $self->application->{content_type} = $type;
+}
+
+sub request_method {
+    return $ENV{REQUEST_METHOD};
 }
 
 sub controller {
@@ -369,6 +373,18 @@ sub cookies {
       ref $self->{store}->{application}->{cookie_data} eq "ARRAY"
       ? @{ $self->{store}->{application}->{cookie_data} }
       : ();
+}
+
+sub flash {
+    my ($self, $message) = @_;
+    if (defined $message) {
+        $self->session->param('_FLASH' => $message);
+    }
+    else {
+        my $message = $self->session->param('_FLASH');
+        $self->session->param('_FLASH' => '');
+        return $message;
+    }
 }
 
 sub html {
@@ -1696,17 +1712,32 @@ that comes with creating web applications models, views and controllers.
     $s->application->{content_type} = 'text/html';
     
     This is just an example, to change the content type please use
-    $s->contenttype('text/html');
+    $s->content_type('text/html');
     Content-Type is always 'text/html' by default.
 
 =cut
 
-=head2 contenttype
+=head2 content_type
 
-    The contenttype method set the desired output format for use
+    The content_type method set the desired output format for use
     with http response headers.
     
-    $s->contenttype('text/html');
+    $s->content_type('text/html');
+
+=cut
+
+=head2 request_method
+
+    The request_method determines the method (either Get or Post) used
+    to requests the current action.
+
+=cut
+
+=head2 flash
+
+    The flash method provides the ability to pass a single string of data
+    from request "A" to request "B", then that data is deleted as to prevent
+    it from being passed to any additional requests.
 
 =cut
 
