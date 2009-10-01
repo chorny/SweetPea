@@ -15,7 +15,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.20';
+our $VERSION = '2.25';
 
 sub new {
     my $class = shift;
@@ -1044,7 +1044,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.20
+Version 2.25
 
 =cut
 
