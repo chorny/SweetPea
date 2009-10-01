@@ -1941,7 +1941,53 @@ that comes with creating web applications models, views and controllers.
 
 =head2 routes
 
-    The routes methods ...
+    The routes method like most popular routing mechanisms allows you to map
+    urls to routines. SweetPea by default uses an auto-discovery mechanism on
+    the controllers folder to create routes automatically, however thier are
+    times when additional flexibility is required. This is where the routes
+    method is particularly useful, also the routes method supports inline
+    url parameters e.g. http:/localhost/route/param1/param2. The easiest way
+    to use the routes method is from within the dispatcher (.pl file).
+    
+    # ... in the .pl file
+    # new
+    sweet->routes({
+    
+        '/:caption' => sub {
+            my $s = shift;
+            $s->html('Hello World, ' . $s->param('caption'));
+        }
+        
+    })->run;
+    
+    #old
+    SweetPea->new->routes({
+
+        '/:caption' => sub {
+            my $s = shift;
+            $s->html('Hello World, ' . $s->param('caption'));
+        },
+        '/:caption/:name' => sub {
+            my $s = shift;
+            $s->html('Hello World, ' . $s->param('caption') .
+            ' my name is ' . $s->param('name')
+            );
+        }
+
+    })->run;
+    
+    It is very important to understand the sophisticated routing SweetPea
+    performs and how it scales with your application over its lifecycle as
+    you add more routes and controllers.
+    
+    There are two types of routes defined when your application is executed,
+    auto-routing and manual routing. As stated before, auto-routing
+    automatically builds routes base on the Controllers in your applications
+    controllers folder. Manual routing is usually established in the dispatcher
+    file as outlined above. Automatically generated routes take priority over
+    manually created ones, so if a manually create route exists that occupies
+    the same url as an auto-discovered one, the manually create one will be
+    overwritten.
 
 =cut
 
