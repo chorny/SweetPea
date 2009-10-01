@@ -431,12 +431,12 @@ sub flash {
     if ( defined $message ) {
         my $message = $self->session->param('_FLASH');
         $self->session->param( '_FLASH' => $message );
+        $self->session->flush;
         return $message;
     }
     else {
         return $self->session->param('_FLASH');
     }
-    $self->session->flush;
 }
 
 sub html {
