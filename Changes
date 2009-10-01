@@ -31,3 +31,8 @@ Revision history for SweetPea
 2.19    9/21/2009 4:30PM EST
         Fixed critical session creation routine in the start and _plugins methods.
         Added flash and request_method methods.
+2.25    10/01/2009 1:23AM EST
+        Added routes with params support
+        Global params method, accesses session, get and post params
+        Session auto-flush on flash
+        

@@ -1,15 +1,18 @@
 # SweetPea Todo List
 
--   [-] Add setup folder (for setup files) and tests folder (with start tests) for testing generated app.
--   [-] Add routes which provides extra security and replaces auto-routes (default) when called.
--   [-] Implement a method to dump auto-routes table to an includable routes.pl file.
--   [-] Write initial development tests.
+#   pending
+-   [-] Document creation via heredocs instead of multiple print statements
+-   [-] Add test folder and starter scripts to generated app (waiting on App:Rad 1.05)
+-   [-] Add tests folder (with starter tests) for testing generated app.
 -   [-] Add demos/demo links to the documentation.
--   [-] Add web application basic functions (discuss sessions, cookies, databases, etc) called GETTING STARTED (After Boiler-Plate)
--   [-] Expand the on SweetPea::Style namespace (cummunity-driven custom application scaffolding)
+-   [-] Write Tests
+
+#   completed
+-   [x] Add support for variable routes, must include support for auto-routes
+-   [x] Flush session object after setting flash message. (maybe instead flush before any redirect)
+-   [x] Add routes which provides extra functionality (basic static routes).
 -   [x] Add method method to determine get or post submissions
 -   [x] Add flash or notice method to convey information across requests
-
 -   [x] Allow the path method to build paths also.
 -   [x] Make global _begin and _end methods run parallel to local _begin and _end
 -   [x] Desperate need of a redirect method
@@ -18,3 +21,8 @@
 -   [x] Auto-initialize controllers which currently require a _new method to be utilized.
 -   [x] Add an unplug method to clear and re-initialize plugin modules.
 -   [x] Add accessors for content-type, controller, action, ...
+
+#   depreciated
+-   [d] Implement a method to dump auto-routes table to an includable routes.pl file.
+-   [d] Expand the on SweetPea::Style namespace (cummunity-driven custom application scaffolding) - moving to SweetPea::Application (entire coc framework)
+-   [d] Add web application basic functions (discuss sessions, cookies, databases, etc) called GETTING STARTED (After Boiler-Plate) - SweetPea::Application

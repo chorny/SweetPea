@@ -5,7 +5,7 @@ BEGIN {
     use Exporter();
     use vars qw( @ISA @EXPORT @EXPORT_OK );
     @ISA    = qw( Exporter );
-    @EXPORT = qw(makeapp makectrl makeview makemodl makefile);
+    @EXPORT = qw(sweet makeapp makectrl makeview makemodl makefile);
 }
 
 use CGI;
@@ -15,7 +15,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.19';
+our $VERSION = '2.20';
 
 sub new {
     my $class = shift;
@@ -23,9 +23,10 @@ sub new {
     bless $self, $class;
 
     #declare config stuff
-    $self->{store}->{application}->{html_content} = [];
-    $self->{store}->{application}->{content_type} = 'text/html';
-    $self->{store}->{application}->{path}         = $FindBin::Bin;
+    $self->{store}->{application}->{html_content}     = [];
+    $self->{store}->{application}->{action_discovery} = 1;
+    $self->{store}->{application}->{content_type}     = 'text/html';
+    $self->{store}->{application}->{path}             = $FindBin::Bin;
     return $self;
 }
 
@@ -34,6 +35,7 @@ sub run {
     $self->_plugins;
     $self->_self_check;
     $self->_init_dispatcher;
+    return $self;
 }
 
 sub _plugins {
@@ -69,13 +71,8 @@ sub _plugins {
         sub {
             my $self = shift;
             CGI::Session->name("SID");
-            my $sess = CGI::Session->new(
-                "driver:file",
-                undef,
-                {
-                    Directory => $self->application->{path}
-                      . '/sweet/sessions'
-                }
+            my $sess = CGI::Session->new( "driver:file", undef,
+                { Directory => $self->application->{path} . '/sweet/sessions' }
             );
             $sess->flush;
             return $sess;
@@ -83,7 +80,8 @@ sub _plugins {
     );
 
     # load non-core plugins from App.pm
-    App->plugins($self);
+    eval 'use App';
+    App->plugins($self) unless $@;
 
     return $self;
 }
@@ -91,7 +89,7 @@ sub _plugins {
 sub _load_path_and_actions {
     my $self = shift;
 
-    if ( !$self->application->{actions} ) {
+    if ( $self->application->{action_discovery} ) {
         my $actions = {};
         find( \&_load_path_actions,
             $self->application->{path} . '/sweet/application/Controller' );
@@ -145,7 +143,7 @@ sub _load_path_and_actions {
                 close(INPUT);
             }
         }
-        $self->application->{actions} = $actions;
+        map { $self->application->{actions}->{$_} = $actions->{$_} } keys %{$actions};
     }
     return $self->application->{actions};
 }
@@ -165,6 +163,7 @@ sub _init_dispatcher {
     my $path     = $self->cgi->path_info();
     $path =~ s/^\/\.pl//;
     $path =~ s/\/$//;
+    $path = '/' unless $path;
     my $handler = $dispatch{$path};
 
     #set uri vars
@@ -193,7 +192,7 @@ sub _init_dispatcher {
     $self->application->{'url'}->{controller} = $controller;
     $self->application->{'url'}->{action}     = $action;
 
-    # restrict access to hidden methods (methodsprefixed with an underscore)
+    # restrict access to hidden methods (methods prefixed with an underscore)
     if ( $path =~ /.*\/_.*$/ ) {
         print $self->cgi->header, $self->cgi->start_html('Not found'),
           $self->cgi->h1('Access Denied'), $self->cgi->end_html;
@@ -201,12 +200,60 @@ sub _init_dispatcher {
     }
 
     # set default action if action not defined
-    unless ( exists $dispatch{$path} ) {
-        $handler = $dispatch{"$controller/_index"}
-          if exists $dispatch{"$controller/_index"};
-        $handler = $dispatch{"/root/_index"}
-          if exists $dispatch{"/root/_index"}
-              && !$dispatch{"$controller/_index"};
+    # do recursive uri analysis
+    my @action_params = ();    
+    if ( not exists $dispatch{$path} ) {
+        
+        if (exists $dispatch{"$controller/_index"}) {
+            $handler = $dispatch{"$controller/_index"};
+        }
+        
+        # start recursive uri analysis
+        my @controller = split /\//, $controller;
+        
+        for (my $i = 0; $i < @controller; $i++) {
+            push @action_params, pop @controller;
+            if (!$controller[0]) {
+                if (exists $dispatch{'/'}) {
+                    $handler = $dispatch{'/'};
+                    $self->application->{'url'}->{controller} =
+                    $controller = '/';
+                    last;
+                }
+            }
+            elsif (exists $dispatch{ join("/", @controller) }) {
+                $handler = $dispatch{ join("/", @controller) };
+                $self->application->{'url'}->{controller} = $controller =
+                join("/", @controller);
+                last;
+            }
+            elsif (exists $dispatch{ join("/", @controller) . "/_index" }) {
+                $handler = $dispatch{ join("/", @controller) . "/_index" };
+                $self->application->{'url'}->{controller} = $controller =
+                join("/", @controller);
+                last;
+            }
+        }
+        
+        # last resort, revert to root controller index action
+        if (exists $dispatch{"/root/_index"} && (!$dispatch{"$controller"}
+            && !$dispatch{"$controller/_index"})) {
+            $handler = $dispatch{"/root/_index"};
+        }        
+    }
+    # old way
+    #unless ( exists $dispatch{$path} ) {
+    #    $handler = $dispatch{"$controller/_index"}
+    #      if exists $dispatch{"$controller/_index"};
+    #    $handler = $dispatch{"/root/_index"}
+    #      if exists $dispatch{"/root/_index"}
+    #          && !$dispatch{"$controller/_index"};
+    #}
+
+    # parse and distribute action params if available
+    if (defined $self->application->{action_params}->{$controller}) {
+        $self->cgi->param(-name => $_, -value => pop @action_params)
+        for @{$self->application->{action_params}->{$controller}};
     }
 
     if ( ref($handler) eq "CODE" ) {
@@ -214,15 +261,15 @@ sub _init_dispatcher {
         #run master _startup routine
         $dispatch{"/root/_startup"}->($self)
           if exists $dispatch{"/root/_startup"};
-        
+
         #run user-defined begin routine or default to root begin
-        
+
         $dispatch{"$controller/_begin"}->($self)
           if exists $dispatch{"$controller/_begin"};
         $dispatch{"/root/_begin"}->($self)
           if exists $dispatch{"/root/_begin"}
               && !$dispatch{"$controller/_begin"};
-        
+
         # run both as opposed to either or global or local
         #$dispatch{"/root/_begin"}->($self)
         #  if exists $dispatch{"/root/_begin"};
@@ -233,12 +280,12 @@ sub _init_dispatcher {
         $handler->($self);
 
         #run user-defined end routine or default to root end
-        
+
         $dispatch{"$controller/_end"}->($self)
           if exists $dispatch{"$controller/_end"};
         $dispatch{"/root/_end"}->($self)
           if exists $dispatch{"/root/_end"} && !$dispatch{"$controller/_end"};
-        
+
         # run both as opposed to either or global or local
         #$dispatch{"$controller/_end"}->($self)
         #  if exists $dispatch{"$controller/_end"};
@@ -270,9 +317,9 @@ sub start {
     # handle session
     if ( defined $self->session ) {
         $self->session->expire(
-            defined $self->application->{session}->{expiration} ?
-            $self->application->{session}->{expiration} : '1h'
-        );
+            defined $self->application->{session}->{expiration}
+            ? $self->application->{session}->{expiration}
+            : '1h' );
         $self->cookie(
             -name  => $self->session->name,
             -value => $self->session->id
@@ -317,7 +364,7 @@ sub detach {
 }
 
 sub redirect {
-    my ($self, $url) = @_;
+    my ( $self, $url ) = @_;
     $url = $self->url($url) unless $url =~ /^http/;
     print $self->cgi->redirect($url);
     exit;
@@ -343,7 +390,7 @@ sub request_method {
 }
 
 sub controller {
-    my ($self, $path) = @_;
+    my ( $self, $path ) = @_;
     return $self->uri->{controller} . ( $path ? $path : '' );
 }
 
@@ -355,16 +402,20 @@ sub action {
 sub uri {
     my ( $self, $path ) = @_;
     return $self->{store}->{application}->{'url'} unless $path;
+    $path =~ s/^\///; # remove leading slash for se with root
     return
         $self->cgi->url( -base => 1 )
       . $self->{store}->{application}->{'url'}->{'root'}
       . $path;
-}   sub url { return shift->uri(@_); }
+}
+
+sub url { return shift->uri(@_); }
 
 sub path {
     my ( $self, $path ) = @_;
-    return $path ? $self->{store}->{application}->{'path'} . $path : 
-    $self->{store}->{application}->{'path'};
+    return $path
+      ? $self->{store}->{application}->{'path'} . $path
+      : $self->{store}->{application}->{'path'};
 }
 
 sub cookies {
@@ -376,15 +427,16 @@ sub cookies {
 }
 
 sub flash {
-    my ($self, $message) = @_;
-    if (defined $message) {
-        $self->session->param('_FLASH' => $message);
-    }
-    else {
+    my ( $self, $message ) = @_;
+    if ( defined $message ) {
         my $message = $self->session->param('_FLASH');
-        $self->session->param('_FLASH' => '');
+        $self->session->param( '_FLASH' => $message );
         return $message;
     }
+    else {
+        return $self->session->param('_FLASH');
+    }
+    $self->session->flush;
 }
 
 sub html {
@@ -433,7 +485,7 @@ sub debug {
 }
 
 sub output {
-    my ($self, $seperator) = @_;
+    my ( $self, $seperator ) = @_;
     $self->start();
     @output = @{ ( defined $seperator ? $self->debug : $self->html ) };
     $seperator = "" unless defined $seperator;
@@ -463,237 +515,224 @@ sub plug {
 }
 
 sub unplug {
-    my ( $self, $name) = @_;
+    my ( $self, $name ) = @_;
     delete $self->{".$name"};
     return $self;
+}
+
+sub routes {
+    my ( $self, $routes ) = @_;
+    map {
+        my $url = $_;
+        my @params = $url =~ m/\:([\w]+)/g;
+        $url =~ s/\:[\w]+(\/)?//g; $url =~ s/\/$//;
+        $url = '/' unless $url;
+        $self->application->{actions}->{$url} = $routes->{$_};
+        $self->application->{action_params}->{$url} = [@params];
+    } keys %{$routes};
+    return $self;
+}
+
+sub param {
+    my ( $self, $name, $type ) = @_;
+    if ( $name && $type ) {
+        return (
+                $type eq 'get' ? $self->cgi->url_param($name)
+            : ( $type eq 'post' ? $self->cgi->param($name)
+            : ( $type eq 'session' ? $self->session->param($name) : '' ) )
+        );
+    }
+    elsif ( $name && !$type ) {
+        return $self->cgi->url_param($name) if $self->cgi->url_param($name);
+        return $self->cgi->param($name) if $self->cgi->param($name);
+        return $self->session->param($name) if $self->session->param($name);
+        return $self->application->{action_params}->{$self->controller}->{$name} if
+        defined $self->application->{action_params}->{$self->controller}->{$name};
+    }
+    else {
+        return 0;
+    }
 }
 
 sub makeapp {
     my $path          = $FindBin::Bin;
     my $app_structure = {};
-    
+
     #htaccess file
     $app_structure->{"$path/.htaccess"} = ""
-    . 'DirectoryIndex .pl' . "\n"
-    . 'AddHandler cgi-script .pl .pm .cgi' . "\n"
-    . 'Options +ExecCGI +FollowSymLinks -Indexes' . "\n"
-    . '' . "\n"
-    . 'RewriteEngine On' . "\n"
-    . 'RewriteCond %{SCRIPT_FILENAME} !-d' . "\n"
-    . 'RewriteCond %{SCRIPT_FILENAME} !-f' . "\n"
-    . 'RewriteRule (.*) .pl/$1 [L]' . "\n"
-    . "";
-    
+      . 'DirectoryIndex .pl' . "\n"
+      . 'AddHandler cgi-script .pl .pm .cgi' . "\n"
+      . 'Options +ExecCGI +FollowSymLinks -Indexes' . "\n" . '' . "\n"
+      . 'RewriteEngine On' . "\n"
+      . 'RewriteCond %{SCRIPT_FILENAME} !-d' . "\n"
+      . 'RewriteCond %{SCRIPT_FILENAME} !-f' . "\n"
+      . 'RewriteRule (.*) .pl/$1 [L]' . "\n" . "";
+
     #router file
-    $app_structure->{"$path/.pl"} = ""
-    . '#!'. $Config{perlpath} .' -w' . "\n"
-    . '' . "\n"
-    . 'BEGIN {' . "\n"
-    . '    use FindBin;' . "\n"
-    . '    use lib $FindBin::Bin . \'/sweet\';' . "\n"
-    . '    use lib $FindBin::Bin . \'/sweet/application\';' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . 'use SweetPea;' . "\n"
-    . 'use App;' . "\n"
-    . '' . "\n"
-    . '# run application' . "\n"
-    . 'SweetPea->new->run;' . "\n"
-    . "";
-    
+    $app_structure->{"$path/.pl"} =
+        "" . '#!'
+      . $Config{perlpath} . ' -w' . "\n" . '' . "\n"
+      . 'BEGIN {' . "\n"
+      . '    use FindBin;' . "\n"
+      . '    use lib $FindBin::Bin . \'/sweet\';' . "\n"
+      . '    use lib $FindBin::Bin . \'/sweet/application\';' . "\n" . '}'
+      . "\n" . '' . "\n"
+      . 'use SweetPea ' . $VERSION . ";\n"
+      . "\n"
+      . '# run application' . "\n"
+      . 'sweet->run;' . "\n" . "";
+
     #default controller
     $app_structure->{"$path/sweet/application/Controller/Root.pm"} = ""
-    . 'package Controller::Root;' . "\n"
-    . '' . "\n"
-    . '=head1 NAME' . "\n"
-    . '' . "\n"
-    . 'Controller::Root - Root Controller / Landing Page (Should Exist).' . "\n"
-    . '' . "\n"
-    . '=cut' . "\n"
-    . '' . "\n"
-    . 'sub _startup {' . "\n"
-    . '    my ( $self, $s ) = @_;' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . 'sub _begin {' . "\n"
-    . '    my ( $self, $s ) = @_;' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . 'sub _index {' . "\n"
-    . '    my ( $self, $s ) = @_;' . "\n"
-    . '    $s->forward(\'/sweet/welcome\');' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . 'sub _end {' . "\n"
-    . '    my ( $self, $s ) = @_;' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . 'sub _shutdown {' . "\n"
-    . '    my ( $self, $s ) = @_;' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . '1;' . "\n"
-    . '' . "\n"
-    . "";
-    
+      . 'package Controller::Root;' . "\n" . '' . "\n"
+      . '=head1 NAME' . "\n" . '' . "\n"
+      . 'Controller::Root - Root Controller / Landing Page (Should Exist).'
+      . "\n" . '' . "\n" . '=cut' . "\n" . '' . "\n"
+      . 'sub _startup {' . "\n"
+      . '    my ( $self, $s ) = @_;' . "\n" . '}' . "\n" . '' . "\n"
+      . 'sub _begin {' . "\n"
+      . '    my ( $self, $s ) = @_;' . "\n" . '}' . "\n" . '' . "\n"
+      . 'sub _index {' . "\n"
+      . '    my ( $self, $s ) = @_;' . "\n"
+      . '    $s->forward(\'/sweet/welcome\');' . "\n" . '}' . "\n" . '' . "\n"
+      . 'sub _end {' . "\n"
+      . '    my ( $self, $s ) = @_;' . "\n" . '}' . "\n" . '' . "\n"
+      . 'sub _shutdown {' . "\n"
+      . '    my ( $self, $s ) = @_;' . "\n" . '}' . "\n" . '' . "\n" . '1;'
+      . "\n" . '' . "\n" . "";
+
     #temporary welcome page
     $app_structure->{"$path/sweet/application/Controller/Sweet.pm"} = ""
-    . 'package Controller::Sweet;' . "\n"
-    . '' . "\n"
-    . '=head1 NAME' . "\n"
-    . '' . "\n"
-    . 'Controller::Sweet - SweetPea Introduction and Welcome Page.' . "\n"
-    . '' . "\n"
-    . '=cut' . "\n"
-    . '' . "\n"
-    . '=head1 DESCRIPTION' . "\n"
-    . '' . "\n"
-    . 'This function displays a simple information page the application defaults to before development.' . "\n"
-    . 'This module should be removed before development.' . "\n"
-    . '' . "\n"
-    . '=cut' . "\n"
-    . '' . "\n"
-    . 'sub welcome {' . "\n"
-    . '    my ( $self, $s ) = @_;' . "\n"
-    . '    my @html = ();' . "\n"
-    . '' . "\n"
-    . '    #header' . "\n"
-    . '    push @html, "<!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">\n";' . "\n"
-    . '    push @html, "<html xmlns=\\"http://www.w3.org/1999/xhtml\\">\n";' . "\n"
-    . '    push @html, "    <head>\n";' . "\n"
-    . '    push @html, "	<meta http-equiv=\\"Content-Type\\" content=\\"text/html; charset=utf-8\\" />\n";' . "\n"
-    . '    push @html, "	<title>SweetPea is Alive and Well - SweetPea, the PnP Perl Web Application Framework</title>\n";' . "\n"
-    . '' . "\n"
-    . '    #stylesheet' . "\n"
-    . '    push @html, "<style type=\\"text/css\\">\n";' . "\n"
-    . '    push @html, "	    body\n";' . "\n"
-    . '    push @html, "	    {\n";' . "\n"
-    . '    push @html, "		font-family:    Bitstream Vera Sans,Trebuchet MS,Verdana,Tahoma,Arial,helvetica,sans-serif;\n";' . "\n"
-    . '    push @html, "		color:          #818F08;\n";' . "\n"
-    . '    push @html, "	    }\n";' . "\n"
-    . '    push @html, "	    h1\n";' . "\n"
-    . '    push @html, "	    {\n";' . "\n"
-    . '    push @html, "		background-color:#818F08;\n";' . "\n"
-    . '    push @html, "		color:#FFFFFF;\n";' . "\n"
-    . '    push @html, "		display:block;\n";' . "\n"
-    . '    push @html, "		font-size:0.85em;\n";' . "\n"
-    . '    push @html, "		font-weight:normal;\n";' . "\n"
-    . '    push @html, "		left:0;\n";' . "\n"
-    . '    push @html, "		padding-bottom:10px;\n";' . "\n"
-    . '    push @html, "		padding-left:15px;\n";' . "\n"
-    . '    push @html, "		padding-right:10px;\n";' . "\n"
-    . '    push @html, "		padding-top:10px;\n";' . "\n"
-    . '    push @html, "		position:absolute;\n";' . "\n"
-    . '    push @html, "		right:0;\n";' . "\n"
-    . '    push @html, "		top:0;\n";' . "\n"
-    . '    push @html, "		margin: 0px;\n";' . "\n"
-    . '    push @html, "	    }\n";' . "\n"
-    . '    push @html, "	    h2\n";' . "\n"
-    . '    push @html, "	    {\n";' . "\n"
-    . '    push @html, "		background-color:#EFEEEE;\n";' . "\n"
-    . '    push @html, "		font-size:1em;\n";' . "\n"
-    . '    push @html, "		padding-bottom:5px;\n";' . "\n"
-    . '    push @html, "		padding-left:5px;\n";' . "\n"
-    . '    push @html, "		padding-right:5px;\n";' . "\n"
-    . '    push @html, "		padding-top:5px;\n";' . "\n"
-    . '    push @html, "	    }\n";' . "\n"
-    . '    push @html, "	    #container\n";' . "\n"
-    . '    push @html, "	    {\n";' . "\n"
-    . '    push @html, "		position:absolute;\n";' . "\n"
-    . '    push @html, "		font-size:0.8em;\n";' . "\n"
-    . '    push @html, "		font-weight:normal;\n";' . "\n"
-    . '    push @html, "		padding-bottom:10px;\n";' . "\n"
-    . '    push @html, "		padding-left:15px;\n";' . "\n"
-    . '    push @html, "		padding-right:10px;\n";' . "\n"
-    . '    push @html, "		padding-top:10px;\n";' . "\n"
-    . '    push @html, "		left:0;\n";' . "\n"
-    . '    push @html, "		right:0;\n";' . "\n"
-    . '    push @html, "		top:40px;\n";' . "\n"
-    . '    push @html, "	    }\n";' . "\n"
-    . '    push @html, "	    .issue\n";' . "\n"
-    . '    push @html, "	    {\n";' . "\n"
-    . '    push @html, "		color: #FF0000;\n";' . "\n"
-    . '    push @html, "	    }\n";' . "\n"
-    . '    push @html, "	    .highlight\n";' . "\n"
-    . '    push @html, "	    {\n";' . "\n"
-    . '    push @html, "		background-color:#EFEEEE;\n";' . "\n"
-    . '    push @html, "		padding:1px;\n";' . "\n"
-    . '    push @html, "	    }\n";' . "\n"
-    . '    push @html, "	</style>\n";' . "\n"
-    . '' . "\n"
-    . '    # body' . "\n"
-    . '    my $path = $s->application->{path};' . "\n"
-    . '' . "\n"
-    . '    push @html, "    </head>\n";' . "\n"
-    . '    push @html, "    <body>\n";' . "\n"
-    . '    push @html, "    <h1>Welcome Young GrassHopper, SweetPea is working.</h1>\n";' . "\n"
-    . '    push @html, "    <div id=\\"container\\">\n";' . "\n"
-    . '    push @html, "	<div class=\\"section\\">\n";' . "\n"
-    . '    push @html, "	<h2>Application Details</h2>\n";' . "\n"
-    . '    push @html, "	<span>SweetPea is running under Perl <span class=\\"highlight\\">$]</span> and is located at <span class=\\"highlight\\">$path</span></span><br/>\n";' . "\n"
-    . '    push @html, "	</div>\n";' . "\n"
-    . '    push @html, "    </div>\n";' . "\n"
-    . '    push @html, "    </body>\n";' . "\n"
-    . '    push @html, "</html>\n";' . "\n"
-    . '' . "\n"
-    . '    $s->html(join("", @html));' . "\n"
-    . '' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . '1;' . "\n"
-    . '' . "\n"
-    . "";
-    
+      . 'package Controller::Sweet;' . "\n" . '' . "\n"
+      . '=head1 NAME' . "\n" . '' . "\n"
+      . 'Controller::Sweet - SweetPea Introduction and Welcome Page.' . "\n"
+      . '' . "\n" . '=cut' . "\n" . '' . "\n"
+      . '=head1 DESCRIPTION' . "\n" . '' . "\n"
+      . 'This function displays a simple information page the application defaults to before development.'
+      . "\n"
+      . 'This module should be removed before development.' . "\n" . '' . "\n"
+      . '=cut' . "\n" . '' . "\n"
+      . 'sub welcome {' . "\n"
+      . '    my ( $self, $s ) = @_;' . "\n"
+      . '    my @html = ();' . "\n" . '' . "\n"
+      . '    #header' . "\n"
+      . '    push @html, "<!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">\n";'
+      . "\n"
+      . '    push @html, "<html xmlns=\\"http://www.w3.org/1999/xhtml\\">\n";'
+      . "\n"
+      . '    push @html, "    <head>\n";' . "\n"
+      . '    push @html, "	<meta http-equiv=\\"Content-Type\\" content=\\"text/html; charset=utf-8\\" />\n";'
+      . "\n"
+      . '    push @html, "	<title>SweetPea is Alive and Well - SweetPea, the PnP Perl Web Application Framework</title>\n";'
+      . "\n" . '' . "\n"
+      . '    #stylesheet' . "\n"
+      . '    push @html, "<style type=\\"text/css\\">\n";' . "\n"
+      . '    push @html, "	    body\n";' . "\n"
+      . '    push @html, "	    {\n";' . "\n"
+      . '    push @html, "		font-family:    Bitstream Vera Sans,Trebuchet MS,Verdana,Tahoma,Arial,helvetica,sans-serif;\n";'
+      . "\n"
+      . '    push @html, "		color:          #818F08;\n";' . "\n"
+      . '    push @html, "	    }\n";' . "\n"
+      . '    push @html, "	    h1\n";' . "\n"
+      . '    push @html, "	    {\n";' . "\n"
+      . '    push @html, "		background-color:#818F08;\n";' . "\n"
+      . '    push @html, "		color:#FFFFFF;\n";' . "\n"
+      . '    push @html, "		display:block;\n";' . "\n"
+      . '    push @html, "		font-size:0.85em;\n";' . "\n"
+      . '    push @html, "		font-weight:normal;\n";' . "\n"
+      . '    push @html, "		left:0;\n";' . "\n"
+      . '    push @html, "		padding-bottom:10px;\n";' . "\n"
+      . '    push @html, "		padding-left:15px;\n";' . "\n"
+      . '    push @html, "		padding-right:10px;\n";' . "\n"
+      . '    push @html, "		padding-top:10px;\n";' . "\n"
+      . '    push @html, "		position:absolute;\n";' . "\n"
+      . '    push @html, "		right:0;\n";' . "\n"
+      . '    push @html, "		top:0;\n";' . "\n"
+      . '    push @html, "		margin: 0px;\n";' . "\n"
+      . '    push @html, "	    }\n";' . "\n"
+      . '    push @html, "	    h2\n";' . "\n"
+      . '    push @html, "	    {\n";' . "\n"
+      . '    push @html, "		background-color:#EFEEEE;\n";' . "\n"
+      . '    push @html, "		font-size:1em;\n";' . "\n"
+      . '    push @html, "		padding-bottom:5px;\n";' . "\n"
+      . '    push @html, "		padding-left:5px;\n";' . "\n"
+      . '    push @html, "		padding-right:5px;\n";' . "\n"
+      . '    push @html, "		padding-top:5px;\n";' . "\n"
+      . '    push @html, "	    }\n";' . "\n"
+      . '    push @html, "	    #container\n";' . "\n"
+      . '    push @html, "	    {\n";' . "\n"
+      . '    push @html, "		position:absolute;\n";' . "\n"
+      . '    push @html, "		font-size:0.8em;\n";' . "\n"
+      . '    push @html, "		font-weight:normal;\n";' . "\n"
+      . '    push @html, "		padding-bottom:10px;\n";' . "\n"
+      . '    push @html, "		padding-left:15px;\n";' . "\n"
+      . '    push @html, "		padding-right:10px;\n";' . "\n"
+      . '    push @html, "		padding-top:10px;\n";' . "\n"
+      . '    push @html, "		left:0;\n";' . "\n"
+      . '    push @html, "		right:0;\n";' . "\n"
+      . '    push @html, "		top:40px;\n";' . "\n"
+      . '    push @html, "	    }\n";' . "\n"
+      . '    push @html, "	    .issue\n";' . "\n"
+      . '    push @html, "	    {\n";' . "\n"
+      . '    push @html, "		color: #FF0000;\n";' . "\n"
+      . '    push @html, "	    }\n";' . "\n"
+      . '    push @html, "	    .highlight\n";' . "\n"
+      . '    push @html, "	    {\n";' . "\n"
+      . '    push @html, "		background-color:#EFEEEE;\n";' . "\n"
+      . '    push @html, "		padding:1px;\n";' . "\n"
+      . '    push @html, "	    }\n";' . "\n"
+      . '    push @html, "	</style>\n";' . "\n" . '' . "\n"
+      . '    # body' . "\n"
+      . '    my $path = $s->application->{path};' . "\n" . '' . "\n"
+      . '    push @html, "    </head>\n";' . "\n"
+      . '    push @html, "    <body>\n";' . "\n"
+      . '    push @html, "    <h1>Welcome Young GrassHopper, SweetPea is working.</h1>\n";'
+      . "\n"
+      . '    push @html, "    <div id=\\"container\\">\n";' . "\n"
+      . '    push @html, "	<div class=\\"section\\">\n";' . "\n"
+      . '    push @html, "	<h2>Application Details</h2>\n";' . "\n"
+      . '    push @html, "	<span>SweetPea is running under Perl <span class=\\"highlight\\">$]</span> and is located at <span class=\\"highlight\\">$path</span></span><br/>\n";'
+      . "\n"
+      . '    push @html, "	</div>\n";' . "\n"
+      . '    push @html, "    </div>\n";' . "\n"
+      . '    push @html, "    </body>\n";' . "\n"
+      . '    push @html, "</html>\n";' . "\n" . '' . "\n"
+      . '    $s->html(join("", @html));' . "\n" . '' . "\n" . '}' . "\n" . ''
+      . "\n" . '1;' . "\n" . '' . "\n" . "";
+
     # base model class
     $app_structure->{"$path/sweet/application/Model/Schema.pm"} = ""
-    . 'package Model::Schema;' . "\n"
-    . 'use strict;' . "\n"
-    . 'use warnings;' . "\n"
-    . '' . "\n"
-    . '1;' . "\n"
-    . '' . "\n"
-    . "";
-    
+      . 'package Model::Schema;' . "\n"
+      . 'use strict;' . "\n"
+      . 'use warnings;' . "\n" . '' . "\n" . '1;' . "\n" . '' . "\n" . "";
+
     # base view class
     $app_structure->{"$path/sweet/application/View/Main.pm"} = ""
-    . 'package View::Main;' . "\n"
-    . 'use strict;' . "\n"
-    . 'use warnings;' . "\n"
-    . '' . "\n"
-    . '1;' . "\n"
-    . '' . "\n"
-    . "";    
-    
+      . 'package View::Main;' . "\n"
+      . 'use strict;' . "\n"
+      . 'use warnings;' . "\n" . '' . "\n" . '1;' . "\n" . '' . "\n" . "";
+
     $app_structure->{"$path/sweet/App.pm"} = ""
-    . 'package App;' . "\n"
-    . '' . "\n"
-    . 'use warnings;' . "\n"
-    . 'use strict;' . "\n"
-    . '' . "\n"
-    . '=head1 NAME' . "\n"
-    . '' . "\n"
-    . 'App - Loads modules and provides accessors to SweetPea.' . "\n"
-    . '' . "\n"
-    . '=cut' . "\n"
-    . '' . "\n"
-    . 'sub plugins {' . "\n"
-    . '    my $s = pop @_;' . "\n"
-    . '' . "\n"
-    . '    # load modules using the following procedure, they will be available to' . "\n"
-    . '    # the application as $s->nameofobject.' . "\n"
-    . '' . "\n"
-    . '    # Note! CGI (cgi), CGI::Cookie (cookie), and CGI::Session (session) ' . "\n"
-    . '    # plugins/modules are pre-loaded and available. ' . "\n"
-    . '' . "\n"
-    . '    # e.g. $s->plug( \'nameofobject\', sub { shift; return Module::Name->new(@_) } );' . "\n"
-    . '' . "\n"
-    . '    return $s;' . "\n"
-    . '}' . "\n"
-    . '' . "\n"
-    . '1;    # End of App' . "\n"
-    . '' . "\n"
-    . "";
-    
+      . 'package App;' . "\n" . '' . "\n"
+      . 'use warnings;' . "\n"
+      . 'use strict;' . "\n" . '' . "\n"
+      . '=head1 NAME' . "\n" . '' . "\n"
+      . 'App - Loads modules and provides accessors to SweetPea.' . "\n" . ''
+      . "\n" . '=cut' . "\n" . '' . "\n"
+      . 'sub plugins {' . "\n"
+      . '    my $s = pop @_;' . "\n" . '' . "\n"
+      . '    # load modules using the following procedure, they will be available to'
+      . "\n"
+      . '    # the application as $s->nameofobject.' . "\n" . '' . "\n"
+      . '    # Note! CGI (cgi), CGI::Cookie (cookie), and CGI::Session (session) '
+      . "\n"
+      . '    # plugins/modules are pre-loaded and available. ' . "\n" . ''
+      . "\n"
+      . '    # e.g. $s->plug( \'nameofobject\', sub { shift; return Module::Name->new(@_) } );'
+      . "\n" . '' . "\n"
+      . '    return $s;' . "\n" . '}' . "\n" . '' . "\n"
+      . '1;    # End of App' . "\n" . '' . "\n" . "";
+
     $app_structure->{"$path/sweet/sessions"}  = "";
     $app_structure->{"$path/sweet/templates"} = "";
     $app_structure->{"$path/static"}          = "";
@@ -753,43 +792,48 @@ sub makeapp {
             }
         }
     }
+
     # secure sessions, and templates folders
     chmod 0700, "$path/sweet/sessions";
     chmod 0700, "$path/sweet/templates";
 }
 
 sub makemodl {
-    my $data = shift;
-    my $controller = (shift @ARGV) || shift;
-    my $syntax = 'Please use, perl -MSweetPea -e makemodl model/name';
-    my $root_path = "$FindBin::Bin/sweet/application/Model/";
-    my ($module_name, $module_path) = ();
+    my $data       = shift;
+    my $controller = ( shift @ARGV ) || shift;
+    my $syntax     = 'Please use, perl -MSweetPea -e makemodl model/name';
+    my $root_path  = "$FindBin::Bin/sweet/application/Model/";
+    my ( $module_name, $module_path ) = ();
     $controller =~ s/\.pm$//;
     $controller =~ s/[a-zA-Z0-9]\://g;
-    if ( $controller ) {
-        if ($controller =~ /[\:\\\/\-]/) {
+    if ($controller) {
+
+        if ( $controller =~ /[\:\\\/\-]/ ) {
             my @folders = split /[\:\\\/\-]/, $controller;
             @folders = map( ucfirst, @folders );
             $module_name = "Model::" . join( "::", @folders );
-            $controller = pop( @folders ) . ".pm";
+            $controller = pop(@folders) . ".pm";
+
             # make folders
             my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$tpath$path" ) {
+                unless ( -e "$tpath$path" ) {
                     mkdir "$tpath$path";
                     chmod 0755, "$tpath$path";
                 }
-                $tpath = "$tpath$path/"; 
+                $tpath = "$tpath$path/";
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
         else {
             $module_name = "Model::" . ucfirst $controller;
-            $module_path = $root_path . ucfirst ( $controller ) . ".pm";
+            $module_path = $root_path . ucfirst($controller) . ".pm";
         }
+
         # create controller
         if ( not -e $module_path ) {
-            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
             print FILE "package $module_name;\n";
             print FILE "\n";
             print FILE "=head1 NAME\n";
@@ -814,37 +858,41 @@ sub makemodl {
 }
 
 sub makectrl {
-    my $data = shift;
-    my $controller = (shift @ARGV) || shift;
-    my $syntax = 'Please use, perl -MSweetPea -e makectrl module/name';
-    my $root_path = "$FindBin::Bin/sweet/application/Controller/";
-    my ($module_name, $module_path) = ();
+    my $data       = shift;
+    my $controller = ( shift @ARGV ) || shift;
+    my $syntax     = 'Please use, perl -MSweetPea -e makectrl module/name';
+    my $root_path  = "$FindBin::Bin/sweet/application/Controller/";
+    my ( $module_name, $module_path ) = ();
     $controller =~ s/\.pm$//;
     $controller =~ s/[a-zA-Z0-9]\://g;
-    if ( $controller ) {
-        if ($controller =~ /[\:\\\/\-]/) {
+    if ($controller) {
+
+        if ( $controller =~ /[\:\\\/\-]/ ) {
             my @folders = split /[\:\\\/\-]/, $controller;
             @folders = map( ucfirst, @folders );
             $module_name = "Controller::" . join( "::", @folders );
-            $controller = pop( @folders ) . ".pm";
+            $controller = pop(@folders) . ".pm";
+
             # make folders
             my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$tpath$path" ) {
+                unless ( -e "$tpath$path" ) {
                     mkdir "$tpath$path";
                     chmod 0755, "$tpath$path";
                 }
-                $tpath = "$tpath$path/"; 
+                $tpath = "$tpath$path/";
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
         else {
             $module_name = "Controller::" . ucfirst $controller;
-            $module_path = $root_path . ucfirst ( $controller ) . ".pm";
+            $module_path = $root_path . ucfirst($controller) . ".pm";
         }
+
         # create controller
         if ( not -e $module_path ) {
-            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
             print FILE "package $module_name;\n";
             print FILE "\n";
             print FILE "=head1 NAME\n";
@@ -881,37 +929,41 @@ sub makectrl {
 }
 
 sub makeview {
-    my $data = shift;
-    my $controller = (shift @ARGV) || shift;
-    my $syntax = 'Please use, perl -MSweetPea -e makeview view/name';
-    my $root_path = "$FindBin::Bin/sweet/application/View/";
-    my ($module_name, $module_path) = ();
+    my $data       = shift;
+    my $controller = ( shift @ARGV ) || shift;
+    my $syntax     = 'Please use, perl -MSweetPea -e makeview view/name';
+    my $root_path  = "$FindBin::Bin/sweet/application/View/";
+    my ( $module_name, $module_path ) = ();
     $controller =~ s/\.pm$//;
     $controller =~ s/[a-zA-Z0-9]\://g;
-    if ( $controller ) {
-        if ($controller =~ /[\:\\\/\-]/) {
+    if ($controller) {
+
+        if ( $controller =~ /[\:\\\/\-]/ ) {
             my @folders = split /[\:\\\/\-]/, $controller;
             @folders = map( ucfirst, @folders );
             $module_name = "View::" . join( "::", @folders );
-            $controller = pop( @folders ) . ".pm";
+            $controller = pop(@folders) . ".pm";
+
             # make folders
             my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$tpath$path" ) {
+                unless ( -e "$tpath$path" ) {
                     mkdir "$tpath$path";
                     chmod 0755, "$tpath$path";
                 }
-                $tpath = "$tpath$path/"; 
+                $tpath = "$tpath$path/";
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
         else {
             $module_name = "View::" . ucfirst $controller;
-            $module_path = $root_path . ucfirst ( $controller ) . ".pm";
+            $module_path = $root_path . ucfirst($controller) . ".pm";
         }
+
         # create controller
         if ( not -e $module_path ) {
-            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
             print FILE "package $module_name;\n";
             print FILE "\n";
             print FILE "=head1 NAME\n";
@@ -936,32 +988,35 @@ sub makeview {
 }
 
 sub makefile {
-    my $data = shift;
-    my $controller = (shift @ARGV) || shift;
-    my $syntax = 'Please use, perl -MSweetPea -e makefile filename';
-    my $root_path = "$FindBin::Bin/";
-    my ($module_name, $module_path) = ();
-    if ( $controller ) {
-        if ($controller =~ /[\\\/\-]/) {
+    my $data       = shift;
+    my $controller = ( shift @ARGV ) || shift;
+    my $syntax     = 'Please use, perl -MSweetPea -e makefile filename';
+    my $root_path  = "$FindBin::Bin/";
+    my ( $module_name, $module_path ) = ();
+    if ($controller) {
+        if ( $controller =~ /[\\\/\-]/ ) {
             my @folders = split /[\\\/\-]/, $controller;
-            $controller = pop( @folders );
+            $controller = pop(@folders);
+
             # make folders
             my $tpath = $root_path;
             foreach my $path (@folders) {
-                unless( -e "$tpath$path" ) {
+                unless ( -e "$tpath$path" ) {
                     mkdir "$tpath$path";
                     chmod 0755, "$tpath$path";
                 }
-                $tpath = "$tpath$path/"; 
+                $tpath = "$tpath$path/";
             }
             $module_path = $root_path . join( "/", @folders ) . "/$controller";
         }
         else {
             $module_path = $root_path . $controller;
         }
+
         # create controller
         if ( not -e $module_path ) {
-            open FILE, ">$module_path" || exit warn "Error creating $controller, $!";
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
             print FILE "$data\n" if $data;
             close FILE;
         }
@@ -975,6 +1030,10 @@ sub makefile {
     }
 }
 
+sub sweet {
+    return SweetPea->new;
+}
+
 1;
 
 __END__
@@ -985,7 +1044,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.19
+Version 2.20
 
 =cut
 
@@ -1621,6 +1680,14 @@ that comes with creating web applications models, views and controllers.
 
 =cut
 
+=head2 param
+
+    The param methods is an all purpose shortcut to accessing CGI's url_param,
+    param (post param method), and CGI::Session's param methods in that order.
+    Convenient when all params have unique names.
+
+=cut
+
 =head1 CONTROL METHODS
 
 =head2 start
@@ -1738,6 +1805,18 @@ that comes with creating web applications models, views and controllers.
     The flash method provides the ability to pass a single string of data
     from request "A" to request "B", then that data is deleted as to prevent
     it from being passed to any additional requests.
+    
+    # set flash message
+    my $message = $s->flash('This is a test flash message');
+    # $message equals 'This is a test flash message'
+    
+    # get flash message
+    my $message = $s->flash();
+    # $message equals 'This is a test flash message'
+    
+    # clear flash message
+    my $message = $s->flash('');
+    # returns previous message then clears, $message equals ""
 
 =cut
 
@@ -1857,6 +1936,12 @@ that comes with creating web applications models, views and controllers.
     # in the example above, $foo and $bar hold the same reference, but
     $baz is holding a new refernce as if it called CPAN::Module->new;
     as defined in the plugins method in App.pm
+
+=cut
+
+=head2 routes
+
+    The routes methods ...
 
 =cut
 
