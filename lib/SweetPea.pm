@@ -348,11 +348,9 @@ sub finish {
 sub forward {
     my ( $self, $path, $class ) = @_;
 
-    #get actions
-    my %dispatch = %{ $self->_load_path_and_actions() };
-
     #run requested routine
-    $dispatch{"$path"}->( $self, $class ) if exists $dispatch{"$path"};
+    $self->application->{actions}->{"$path"}->( $self, $class ) if
+    exists $self->application->{actions}->{"$path"};
 }
 
 sub detach {
@@ -1051,6 +1049,35 @@ Version 2.25
 
 Oh how Sweet web application development can be ...
 
+    # start minimalist
+    use SweetPea;
+    sweet->routes({
+        '/' => sub {
+            shift->forward('/way');
+        },
+        '/way' => sub {
+            shift->html('I am the way the truth and the light!');
+        }
+    })->run;
+    
+    # graduate to scalable MVC architecture
+    perl -MSweetPea -e makeapp
+    
+    use SweetPea;
+    sweet->run;
+    #look mom, auto-routes unless I tell it otherwise.
+
+=head1 DESCRIPTION
+
+SweetPea is a modern web application framework that follows the MVC (Model,
+View, Controller) design pattern using useful concepts from Mojolicious, Catalyst
+and other robust web frameworks. SweetPea has a short learning curve, is
+light-weight, as scalable as you need it to be, and requires little configuration.
+
+=head1 BASIC INSTALLATION
+
+Oh how Sweet web application development can be ...
+
     ... at the cli (command line interface)
     
     # download, test and install
@@ -1072,14 +1099,16 @@ Oh how Sweet web application development can be ...
     use SweetPea;
     my $s = SweetPea->new->run;
     
-That's all Folks.
+That's all Folks, wait, SweetPea just got Sweeter.
+SweetPea now supports routes. Checkout this minimalist App.
 
-=head1 DESCRIPTION
-
-SweetPea is a modern web application framework that follows the MVC (Model,
-View, Controller) design pattern using useful concepts from Mojolicious, Catalyst
-and other robust web frameworks. SweetPea has a short learning curve, is
-light-weight, as scalable as you need it to be, and requires little configuration.
+    ... somescript.pl
+    use SweetPea;
+    sweet->routes({
+        '/' => sub {
+            shift->html('Now I'm cooking with chef.');
+        }
+    })->run;
 
 =head1 EXPORTED
 

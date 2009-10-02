@@ -35,4 +35,5 @@ Revision history for SweetPea
         Added routes with params support
         Global params method, accesses session, get and post params
         Session auto-flush on flash
+        Updated POD
         
