@@ -1049,18 +1049,21 @@ Version 2.25
 
 Oh how Sweet web application development can be ...
 
-    # start minimalist
+    # start out as a minimalist application
     use SweetPea;
     sweet->routes({
+    
         '/' => sub {
             shift->forward('/way');
         },
+        
         '/way' => sub {
             shift->html('I am the way the truth and the light!');
         }
+        
     })->run;
     
-    # graduate to scalable MVC architecture
+    # graduate to a scalable MVC architecture (without refactoring)
     perl -MSweetPea -e makeapp
     
     use SweetPea;
@@ -1102,12 +1105,14 @@ Oh how Sweet web application development can be ...
 That's all Folks, wait, SweetPea just got Sweeter.
 SweetPea now supports routes. Checkout this minimalist App.
 
-    ... somescript.pl
+    ... in .pl
     use SweetPea;
     sweet->routes({
+    
         '/' => sub {
-            shift->html('Now I'm cooking with chef.');
+            shift->html('I took index.html\'s good, he got lazy.');
         }
+        
     })->run;
 
 =head1 EXPORTED
