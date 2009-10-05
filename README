@@ -27,6 +27,8 @@ After installing, you can find documentation for this module with the
 perldoc command.
 
     perldoc SweetPea
+    -or-
+    perldoc SweetPea.pm
 
 You can also look for information at:
 

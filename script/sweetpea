@@ -70,6 +70,8 @@ Argument(s):
 # boiler-plate code ---------------------------------------------------------
 
 my $module = 'package'; # prevents cpan from catalogging embedded code
+my $head1  = '=head1';
+my $cut    = '=cut';
 my $bpcode = {};
    $bpcode->{'htaccess'} = <<'EOF';
 DirectoryIndex .pl
@@ -147,11 +149,11 @@ EOF
    $bpcode->{'root'} = <<EOF;
 $module Controller::Root;
 
-=head1 NAME
+$head1 NAME
 
 Controller::Root - Root Controller / Landing Page (Should Exist).
 
-=cut
+$cut
 
 sub _startup {
     my ( \$self, \$s ) = \@_;
@@ -179,18 +181,18 @@ EOF
    $bpcode->{'sweet'} = <<EOF;
 $module Controller::Sweet;
 
-=head1 NAME
+$head1 NAME
 
 Controller::Sweet - SweetPea Introduction and Welcome Page.
 
-=cut
+$cut
 
-=head1 DESCRIPTION
+$head1 DESCRIPTION
 
 This function displays a simple information page the application defaults
 to before development. This module should be removed before development.
 
-=cut
+$cut
 
 sub welcome {
     my ( \$self, \$s ) = \@_;
@@ -308,11 +310,11 @@ $module App;
 use warnings;
 use strict;
 
-=head1 NAME
+$head1 NAME
 
 App - Loads modules and provides accessors to SweetPea.
 
-=cut
+$cut
 
 sub plugins {
     my \$s = pop \@_;
@@ -735,31 +737,13 @@ SweetPea - Rapid Application Development Utility
 sweetpea [options] [params]
 
  Options:
-   -help            brief help message
-   -man             full documentation
-
-   -makeapp         generates default application tree
-   -makemodl        generates a bolier-plate Model
-   -makeview        generates a bolier-plate View
-   -makectrl        generates a bolier-plate Controller
-
-=head1 OPTIONS
-
-=over 8
-
-=item B<-help>
-
-Print a brief help message and exits.
-
-=item B<-man>
-
-Prints the manual page and exits.
-
-=back
+   see sweetpea help
 
 =head1 DESCRIPTION
 
 B<sweetpea.pl> is used to generate the initial application structure and any
 additional Models, Views, and/or Controllers you may need.
+
+* For POD documentation on the SweetPea module, try perldoc SweetPea.pm
 
 =cut
