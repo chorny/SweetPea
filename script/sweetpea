@@ -334,7 +334,7 @@ EOF
 # builders ------------------------------------------------------------------
 
 sub makeapp {
-    my $path          = $FindBin::Bin;
+    my $path          = getcwd();
     my $app_structure = {};
     my $output        = '';
 
@@ -670,7 +670,7 @@ sub make {
 sub model {
   my $c = shift;
   if ($c->options->{name}) {
-    return makemodl($c->options->{name})
+    return makemodl("", $c->options->{name})
   }
   else {
     return $usage->{model};
@@ -680,7 +680,7 @@ sub model {
 sub view {
   my $c = shift;
   if ($c->options->{name}) {
-    return makeview($c->options->{name})
+    return makeview("", $c->options->{name})
   }
   else {
     return $usage->{view};
@@ -690,7 +690,7 @@ sub view {
 sub ctrl {
   my $c = shift;
   if ($c->options->{name}) {
-    return makectrl($c->options->{name})
+    return makectrl("", $c->options->{name})
   }
   else {
     return $usage->{ctrl};
