@@ -44,4 +44,7 @@ Revision history for SweetPea
         Generate a console debugging tool with app
 2.31    10/5/2009 11:15AM EST
         Fixed builder (so cpan won't cache embedded code)
+2.32    10/5/2009 2:42EST
+        Fixed unix file permissions on generated files (set all 755)
+        Moved default sessions directory to tmp folder unless local_session flag is set
         

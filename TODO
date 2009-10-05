@@ -1,6 +1,10 @@
 # SweetPea Todo List
 
+#   bugs
+    [-] root-level route failure after 3 inline url params
+
 #   pending
+-   [-] Add wildcard operator to routing
 -   [-] Add demos/demo links to the documentation.
 -   [-] Add logging by checking debug array during _shutdown
 

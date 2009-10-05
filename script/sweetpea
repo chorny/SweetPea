@@ -193,98 +193,99 @@ This function displays a simple information page the application defaults
 to before development. This module should be removed before development.
 
 $cut
-
+EOF
+   $bpcode->{'sweet'} .= <<'EOF';
 sub welcome {
-    my ( \$self, \$s ) = \@_;
-    my \@html = ();
+    my ( $self, $s ) = @_;
+    my @html = ();
 
     #header
-    push \@html, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//
+    push @html, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//
     EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n";
-    push \@html, "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n";
-    push \@html, "    <head>\n";
-    push \@html, "	<meta http-equiv=\"Content-Type\" content=\"text/html;
+    push @html, "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n";
+    push @html, "    <head>\n";
+    push @html, "	<meta http-equiv=\"Content-Type\" content=\"text/html;
     charset=utf-8\" />\n";
-    push \@html, "	<title>SweetPea is Alive and Well - SweetPea, the PnP
+    push @html, "	<title>SweetPea is Alive and Well - SweetPea, the PnP
     Perl Web Application Framework</title>\n";
 
     #stylesheet
-    push \@html, "<style type=\"text/css\">\n";
-    push \@html, "	    body\n";
-    push \@html, "	    {\n";
-    push \@html, "		font-family:    Bitstream Vera Sans,Trebuchet
+    push @html, "<style type=\"text/css\">\n";
+    push @html, "	    body\n";
+    push @html, "	    {\n";
+    push @html, "		font-family:    Bitstream Vera Sans,Trebuchet
     MS,Verdana,Tahoma,Arial,helvetica,sans-serif;\n";
-    push \@html, "		color:          #818F08;\n";
-    push \@html, "	    }\n";
-    push \@html, "	    h1\n";
-    push \@html, "	    {\n";
-    push \@html, "		background-color:#818F08;\n";
-    push \@html, "		color:#FFFFFF;\n";
-    push \@html, "		display:block;\n";
-    push \@html, "		font-size:0.85em;\n";
-    push \@html, "		font-weight:normal;\n";
-    push \@html, "		left:0;\n";
-    push \@html, "		padding-bottom:10px;\n";
-    push \@html, "		padding-left:15px;\n";
-    push \@html, "		padding-right:10px;\n";
-    push \@html, "		padding-top:10px;\n";
-    push \@html, "		position:absolute;\n";
-    push \@html, "		right:0;\n";
-    push \@html, "		top:0;\n";
-    push \@html, "		margin: 0px;\n";
-    push \@html, "	    }\n";
-    push \@html, "	    h2\n";
-    push \@html, "	    {\n";
-    push \@html, "		background-color:#EFEEEE;\n";
-    push \@html, "		font-size:1em;\n";
-    push \@html, "		padding-bottom:5px;\n";
-    push \@html, "		padding-left:5px;\n";
-    push \@html, "		padding-right:5px;\n";
-    push \@html, "		padding-top:5px;\n";
-    push \@html, "	    }\n";
-    push \@html, "	    #container\n";
-    push \@html, "	    {\n";
-    push \@html, "		position:absolute;\n";
-    push \@html, "		font-size:0.8em;\n";
-    push \@html, "		font-weight:normal;\n";
-    push \@html, "		padding-bottom:10px;\n";
-    push \@html, "		padding-left:15px;\n";
-    push \@html, "		padding-right:10px;\n";
-    push \@html, "		padding-top:10px;\n";
-    push \@html, "		left:0;\n";
-    push \@html, "		right:0;\n";
-    push \@html, "		top:40px;\n";
-    push \@html, "	    }\n";
-    push \@html, "	    .issue\n";
-    push \@html, "	    {\n";
-    push \@html, "		color: #FF0000;\n";
-    push \@html, "	    }\n";
-    push \@html, "	    .highlight\n";
-    push \@html, "	    {\n";
-    push \@html, "		background-color:#EFEEEE;\n";
-    push \@html, "		padding:1px;\n";
-    push \@html, "	    }\n";
-    push \@html, "	</style>\n";
+    push @html, "		color:          #818F08;\n";
+    push @html, "	    }\n";
+    push @html, "	    h1\n";
+    push @html, "	    {\n";
+    push @html, "		background-color:#818F08;\n";
+    push @html, "		color:#FFFFFF;\n";
+    push @html, "		display:block;\n";
+    push @html, "		font-size:0.85em;\n";
+    push @html, "		font-weight:normal;\n";
+    push @html, "		left:0;\n";
+    push @html, "		padding-bottom:10px;\n";
+    push @html, "		padding-left:15px;\n";
+    push @html, "		padding-right:10px;\n";
+    push @html, "		padding-top:10px;\n";
+    push @html, "		position:absolute;\n";
+    push @html, "		right:0;\n";
+    push @html, "		top:0;\n";
+    push @html, "		margin: 0px;\n";
+    push @html, "	    }\n";
+    push @html, "	    h2\n";
+    push @html, "	    {\n";
+    push @html, "		background-color:#EFEEEE;\n";
+    push @html, "		font-size:1em;\n";
+    push @html, "		padding-bottom:5px;\n";
+    push @html, "		padding-left:5px;\n";
+    push @html, "		padding-right:5px;\n";
+    push @html, "		padding-top:5px;\n";
+    push @html, "	    }\n";
+    push @html, "	    #container\n";
+    push @html, "	    {\n";
+    push @html, "		position:absolute;\n";
+    push @html, "		font-size:0.8em;\n";
+    push @html, "		font-weight:normal;\n";
+    push @html, "		padding-bottom:10px;\n";
+    push @html, "		padding-left:15px;\n";
+    push @html, "		padding-right:10px;\n";
+    push @html, "		padding-top:10px;\n";
+    push @html, "		left:0;\n";
+    push @html, "		right:0;\n";
+    push @html, "		top:40px;\n";
+    push @html, "	    }\n";
+    push @html, "	    .issue\n";
+    push @html, "	    {\n";
+    push @html, "		color: #FF0000;\n";
+    push @html, "	    }\n";
+    push @html, "	    .highlight\n";
+    push @html, "	    {\n";
+    push @html, "		background-color:#EFEEEE;\n";
+    push @html, "		padding:1px;\n";
+    push @html, "	    }\n";
+    push @html, "	</style>\n";
 
     # body
-    my \$path = \$s->application->{path};
+    my $path = $s->application->{path};
 
-    push \@html, "    </head>\n";
-    push \@html, "    <body>\n";
-    push \@html, "    <h1>Welcome Young GrassHopper, SweetPea is working.
+    push @html, "    </head>\n";
+    push @html, "    <body>\n";
+    push @html, "    <h1>Welcome Young GrassHopper, SweetPea is working.
     </h1>\n";
-    push \@html, "    <div id=\"container\">\n";
-    push \@html, "	<div class=\"section\">\n";
-    push \@html, "	<h2>Application Details</h2>\n";
-    push \@html, "	<span>SweetPea is running under Perl
-    <span class=\"highlight\">\$]</span> and is located at
-    <span class=\"highlight\">\$path</span></span><br/>\n";
-    push \@html, "	</div>\n";
-    push \@html, "    </div>\n";
-    push \@html, "    </body>\n";
-    push \@html, "</html>\n";
+    push @html, "    <div id=\"container\">\n";
+    push @html, "	<div class=\"section\">\n";
+    push @html, "	<h2>Application Details</h2>\n";
+    push @html, "	<span>SweetPea is running under Perl
+    <span class=\"highlight\">$]</span> and is located at
+    <span class=\"highlight\">$path</span></span><br/>\n";
+    push @html, "	</div>\n";
+    push @html, "    </div>\n";
+    push @html, "    </body>\n";
+    push @html, "</html>\n";
 
-    \$s->html(join("", \@html));
+    $s->html(join("", @html));
 
 }
 
@@ -367,7 +368,7 @@ sub makeapp {
                     my $fpath = $path;
                     foreach (@folders) {
                         $fpath .= "$_/";
-                        mkdir( $fpath, 0754 ) if $fpath =~ /sweet/;
+                        mkdir( $fpath, 0755 ) if $fpath =~ /sweet/;
                         mkdir( $fpath, 0755 ) if $fpath !~ /sweet/;
                     }
                     if ( $fod =~ /sweet/ ) {
@@ -413,8 +414,8 @@ sub makeapp {
     }
 
     # secure sessions, and templates folders
-    chmod 0700, "$path/sweet/sessions";
-    chmod 0700, "$path/sweet/templates";
+    chmod 0755, "$path/sweet/sessions";
+    chmod 0755, "$path/sweet/templates";
     
     return $output;
 }

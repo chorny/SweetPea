@@ -24,6 +24,7 @@ sub new {
     #declare config stuff
     $self->{store}->{application}->{html_content}     = [];
     $self->{store}->{application}->{action_discovery} = 1;
+    $self->{store}->{application}->{local_session}    = 0; # for debugging
     $self->{store}->{application}->{content_type}     = 'text/html';
     $self->{store}->{application}->{path}             = $FindBin::Bin;
     return $self;
@@ -77,16 +78,20 @@ sub _plugins {
         'session',
         sub {
             my $self = shift;
+            my $opts = {};
             CGI::Session->name("SID");
-            mkdir "sweet"
-                unless -e "$self->application->{path}/sweet";
-            mkdir "sweet/sessions"
-                unless -e "$self->application->{path}/sweet/sessions";
-            my $sess = CGI::Session->new( "driver:file", undef,
-                {
-                    Directory => 'sweet/sessions'
-                }
-            );
+            if ($self->{store}->{application}->{local_session}) {
+                mkdir "sweet"
+                unless -e
+                "$self->{store}->{application}->{path}/sweet";
+                
+                mkdir "sweet/sessions"
+                unless -e
+                "$self->{store}->{application}->{path}/sweet/sessions";
+                
+                $opts->{Directory} = 'sweet/sessions';
+            }
+            my $sess = CGI::Session->new("driver:file", undef, $opts);
             $sess->flush;
             return $sess;
         }
