@@ -36,4 +36,11 @@ Revision history for SweetPea
         Global params method, accesses session, get and post params
         Session auto-flush on flash
         Updated POD
+2.26    10/4/2009 10:54AM EST
+        Added various tests
+        Changed output method
+        Fixed debug method
+        SweetPea get a helper/builder
+        Generate a console debugging tool with app
+        
         

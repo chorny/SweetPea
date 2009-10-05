@@ -1,0 +1,764 @@
+#!/usr/bin/perl -w
+
+#use strict;
+use App::Rad;
+use Cwd 'getcwd';
+
+BEGIN {
+  eval "use SweetPea 2.30 ();";
+  if ($@) {
+    die <<END;
+  To use the this builder please install SweetPea (web application framework)
+  which is being reported as missing or broken. Please install via CPAN using
+  one of the following commands.
+  
+    cpan SweetPea
+    -or-
+    perl -MCPAN -e 'install SweetPea'
+    -or-
+    perl -MCPANPLUS -e 'install SweetPea'
+END
+  }
+}
+
+my $usage = {
+  'make' => q/
+make - build application structure with boiler-plate code
+    
+Usage:
+    sweetpea make [--argument, ]
+    e.g. sweetpea make --script
+    
+Argument(s):
+    script - makes a sweetpea script without the application structure
+/,
+  'model' => q/
+model - create a model with boiler-plate code
+    
+Usage:
+    sweetpea model [--argument, ]
+    e.g. sweetpea model --name=user\/profile
+    creates User\/Profile.pm
+    
+Argument(s):
+    name - defines the name and placement of the Model class
+/,
+  'view' => q/
+view - create a view with boiler-plate code
+    
+Usage:
+    sweetpea view [--argument, ]
+    e.g. sweetpea view --name=email\/plain
+    creates Email\/Plain.pm
+    
+Argument(s):
+    name - defines the name and placement of the View class
+/,
+  'ctrl' => q/
+ctrl - create a controller with boiler-plate code
+    
+Usage:
+    sweetpea ctrl [--argument, ]
+    e.g. sweetpea ctrl --name=catalog\/products
+    creates Catalog\/Products.pm
+    
+Argument(s):
+    name - defines the name and placement of the Controller class
+/,
+};
+
+# boiler-plate code ---------------------------------------------------------
+
+my $bpcode = {};
+   $bpcode->{'htaccess'} = <<'EOF';
+DirectoryIndex .pl
+AddHandler cgi-script .pl .pm .cgi
+Options +ExecCGI +FollowSymLinks -Indexes
+
+RewriteEngine On
+RewriteCond %{SCRIPT_FILENAME} !-d
+RewriteCond %{SCRIPT_FILENAME} !-f
+RewriteRule (.*) .pl/$1 [L]
+EOF
+   $bpcode->{'router'} = <<EOF;
+#!$^X -w
+
+BEGIN {
+    use FindBin;
+    use lib \$FindBin::Bin . '/sweet';
+    use lib \$FindBin::Bin . '/sweet/application';
+}
+
+use SweetPea $SweetPea::VERSION;
+
+# run application
+sweet->run;
+EOF
+   $bpcode->{'script'} = <<EOF;
+#!$^X -w
+
+BEGIN {
+    use FindBin;
+    use lib \$FindBin::Bin . '/sweet';
+    use lib \$FindBin::Bin . '/sweet/application';
+}
+
+use SweetPea $SweetPea::VERSION;
+
+# weightless application
+sweet->routes({
+    
+    '/:url' => sub {
+        my \$s = shift;
+        \$s->html("<h1>SweetPea is alive and well</h1>");
+        \$s->html("You passed an inline url param: " . \$s->param('url') )
+        if \$s->param('url');
+    }
+    
+})->run;
+EOF
+   $bpcode->{'tester'} = <<EOF;
+#!$^X -w
+
+BEGIN {
+    use FindBin;
+    use lib \$FindBin::Bin . '/sweet';
+    use lib \$FindBin::Bin . '/sweet/application';
+}
+
+use SweetPea $SweetPea::VERSION;
+
+# application debugger & testing unit
+# experimental !! handles get, not sure if it handles post, etc
+# usage: perl .t /route param=value
+# try: perl .t /test id=1
+
+sweet->routes({
+  
+  # write to console  
+  '/root/_shutdown'   => sub {
+    my \$s = shift;
+    \$s->output('debug', 'cli');
+  }
+    
+})->test(\$ARGV[0]);
+EOF
+   $bpcode->{'root'} = <<'EOF';
+package Controller::Root;
+
+=head1 NAME
+
+Controller::Root - Root Controller / Landing Page (Should Exist).
+
+=cut
+
+sub _startup {
+    my ( $self, $s ) = @_;
+}
+
+sub _begin {
+    my ( $self, $s ) = @_;
+}
+
+sub _index {
+    my ( $self, $s ) = @_;
+    $s->forward('/sweet/welcome');
+}
+
+sub _end {
+    my ( $self, $s ) = @_;
+}
+
+sub _shutdown {
+    my ( $self, $s ) = @_;
+}
+
+1;
+EOF
+   $bpcode->{'sweet'} = <<'EOF';
+package Controller::Sweet;
+
+=head1 NAME
+
+Controller::Sweet - SweetPea Introduction and Welcome Page.
+
+=cut
+
+=head1 DESCRIPTION
+
+This function displays a simple information page the application defaults
+to before development. This module should be removed before development.
+
+=cut
+
+sub welcome {
+    my ( $self, $s ) = @_;
+    my @html = ();
+
+    #header
+    push @html, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//
+    EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n";
+    push @html, "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n";
+    push @html, "    <head>\n";
+    push @html, "	<meta http-equiv=\"Content-Type\" content=\"text/html;
+    charset=utf-8\" />\n";
+    push @html, "	<title>SweetPea is Alive and Well - SweetPea, the PnP
+    Perl Web Application Framework</title>\n";
+
+    #stylesheet
+    push @html, "<style type=\"text/css\">\n";
+    push @html, "	    body\n";
+    push @html, "	    {\n";
+    push @html, "		font-family:    Bitstream Vera Sans,Trebuchet
+    MS,Verdana,Tahoma,Arial,helvetica,sans-serif;\n";
+    push @html, "		color:          #818F08;\n";
+    push @html, "	    }\n";
+    push @html, "	    h1\n";
+    push @html, "	    {\n";
+    push @html, "		background-color:#818F08;\n";
+    push @html, "		color:#FFFFFF;\n";
+    push @html, "		display:block;\n";
+    push @html, "		font-size:0.85em;\n";
+    push @html, "		font-weight:normal;\n";
+    push @html, "		left:0;\n";
+    push @html, "		padding-bottom:10px;\n";
+    push @html, "		padding-left:15px;\n";
+    push @html, "		padding-right:10px;\n";
+    push @html, "		padding-top:10px;\n";
+    push @html, "		position:absolute;\n";
+    push @html, "		right:0;\n";
+    push @html, "		top:0;\n";
+    push @html, "		margin: 0px;\n";
+    push @html, "	    }\n";
+    push @html, "	    h2\n";
+    push @html, "	    {\n";
+    push @html, "		background-color:#EFEEEE;\n";
+    push @html, "		font-size:1em;\n";
+    push @html, "		padding-bottom:5px;\n";
+    push @html, "		padding-left:5px;\n";
+    push @html, "		padding-right:5px;\n";
+    push @html, "		padding-top:5px;\n";
+    push @html, "	    }\n";
+    push @html, "	    #container\n";
+    push @html, "	    {\n";
+    push @html, "		position:absolute;\n";
+    push @html, "		font-size:0.8em;\n";
+    push @html, "		font-weight:normal;\n";
+    push @html, "		padding-bottom:10px;\n";
+    push @html, "		padding-left:15px;\n";
+    push @html, "		padding-right:10px;\n";
+    push @html, "		padding-top:10px;\n";
+    push @html, "		left:0;\n";
+    push @html, "		right:0;\n";
+    push @html, "		top:40px;\n";
+    push @html, "	    }\n";
+    push @html, "	    .issue\n";
+    push @html, "	    {\n";
+    push @html, "		color: #FF0000;\n";
+    push @html, "	    }\n";
+    push @html, "	    .highlight\n";
+    push @html, "	    {\n";
+    push @html, "		background-color:#EFEEEE;\n";
+    push @html, "		padding:1px;\n";
+    push @html, "	    }\n";
+    push @html, "	</style>\n";
+
+    # body
+    my $path = $s->application->{path};
+
+    push @html, "    </head>\n";
+    push @html, "    <body>\n";
+    push @html, "    <h1>Welcome Young GrassHopper, SweetPea is working.
+    </h1>\n";
+    push @html, "    <div id=\"container\">\n";
+    push @html, "	<div class=\"section\">\n";
+    push @html, "	<h2>Application Details</h2>\n";
+    push @html, "	<span>SweetPea is running under Perl
+    <span class=\"highlight\">$]</span> and is located at
+    <span class=\"highlight\">$path</span></span><br/>\n";
+    push @html, "	</div>\n";
+    push @html, "    </div>\n";
+    push @html, "    </body>\n";
+    push @html, "</html>\n";
+
+    $s->html(join("", @html));
+
+}
+
+1;
+EOF
+   $bpcode->{'model'} = <<'EOF';
+package Model::Schema;
+use strict;
+use warnings;
+
+1;
+EOF
+   $bpcode->{'view'} = <<'EOF';
+package View::Main;
+use strict;
+use warnings;
+
+1;
+EOF
+   $bpcode->{'app'} = <<'EOF';
+package App;
+
+use warnings;
+use strict;
+
+=head1 NAME
+
+App - Loads modules and provides accessors to SweetPea.
+
+=cut
+
+sub plugins {
+    my $s = pop @_;
+
+    # load modules using the following procedure, they will be available to
+    # the application as $s->nameofobject.
+
+    # Note! CGI (cgi), CGI::Cookie (cookie), and CGI::Session (session) 
+    # plugins/modules are pre-loaded and available. 
+
+    # e.g. $s->plug( 'nameofobject', sub { shift; return Module::Name->new(@_) } );
+
+    return $s;
+}
+
+1;    # End of App
+EOF
+
+
+# builders ------------------------------------------------------------------
+
+sub makeapp {
+    my $path          = $FindBin::Bin;
+    my $app_structure = {};
+    my $output        = '';
+
+    #htaccess file
+    $app_structure = {
+      "$path/.htaccess"                             => $bpcode->{htaccess},
+      "$path/.pl"                                   => $bpcode->{router},
+      "$path/.t"                                    => $bpcode->{tester},
+      "$path/sweet/application/Controller/Root.pm"  => $bpcode->{root},
+      "$path/sweet/application/Controller/Sweet.pm" => $bpcode->{sweet},
+      "$path/sweet/application/Model/Schema.pm"     => $bpcode->{model},
+      "$path/sweet/application/View/Main.pm"        => $bpcode->{view},
+      "$path/sweet/App.pm"                          => $bpcode->{app},
+      "$path/sweet/sessions"                        => "",
+      "$path/sweet/templates"                       => "",
+      "$path/static"                                => ""
+      };
+
+    # make application structure
+    foreach my $fod ( keys %{$app_structure} ) {
+        unless ( -e $fod ) {
+            if ( $fod =~ /\.\w{1,}$/ ) {
+                $fod =~ s/^$path//;
+                my @folders = split /\//, $fod;
+                if (@folders) {
+                    my $file  = pop @folders;
+                    my $fpath = $path;
+                    foreach (@folders) {
+                        $fpath .= "$_/";
+                        mkdir( $fpath, 0754 ) if $fpath =~ /sweet/;
+                        mkdir( $fpath, 0755 ) if $fpath !~ /sweet/;
+                    }
+                    if ( $fod =~ /sweet/ ) {
+                        open IN, ">$path$fod" || die "Can't create $file, $!";
+                        print IN $app_structure->{"$path$fod"};
+                        close IN;
+                        my $mode = '0755';
+                        chmod $mode, "$path$fod";
+                        $output .= "Created file $fod (chmod 755) ...\n";
+                    }
+                    else {
+                        open IN, ">$path$fod" || die "Can't create $file, $!";
+                        print IN $app_structure->{"$path$fod"};
+                        close IN;
+                        chmod 0755, "$path$fod";
+                        $output .= "Created file $fod (chmod 755) ...\n";
+                    }
+                }
+                else {
+                    $fod =~ s/^$path//;
+                    open IN, ">$fod" || die "Can't create $fod, $!";
+                    print IN $app_structure->{$fod};
+                    close IN;
+                    chmod 0755, "$fod";
+                    $output .= "Created file $fod (chmod 755) ...\n";
+                }
+            }
+            else {
+                $fod =~ s/^$path//;
+                my @folders = split /\//, $fod;
+                if (@folders) {
+                    my $fpath = $path;
+                    foreach (@folders) {
+                        $fpath .= "$_/";
+                        mkdir( $fpath, 0755 );
+                    }
+                }
+                else {
+                    mkdir( $path, 0755 );
+                }
+            }
+        }
+    }
+
+    # secure sessions, and templates folders
+    chmod 0700, "$path/sweet/sessions";
+    chmod 0700, "$path/sweet/templates";
+    
+    return $output;
+}
+
+sub makemodl {
+    my $data       = shift;
+    my $controller = shift;
+    my $output     = shift;
+    my $root_path  = getcwd . "/sweet/application/Model/";
+    my ( $module_name, $module_path ) = ();
+    $controller =~ s/\.pm$//;
+    $controller =~ s/[a-zA-Z0-9]\://g;
+    if ($controller) {
+
+        if ( $controller =~ /[\:\\\/\-]/ ) {
+            my @folders = split /[\:\\\/\-]/, $controller;
+            @folders = map( ucfirst, @folders );
+            $module_name = "Model::" . join( "::", @folders );
+            $controller = pop(@folders) . ".pm";
+
+            # make folders
+            my $tpath = $root_path;
+            foreach my $path (@folders) {
+                unless ( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
+                }
+                $tpath = "$tpath$path/";
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_name = "Model::" . ucfirst $controller;
+            $module_path = $root_path . ucfirst($controller) . ".pm";
+        }
+
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "package $module_name;\n";
+            print FILE "\n";
+            print FILE "=head1 NAME\n";
+            print FILE "\n";
+            print FILE "$module_name - Model Description.\n";
+            print FILE "\n";
+            print FILE "=cut\n";
+            print FILE "\n";
+            print FILE "$data\n" if $data;
+            print FILE "\n";
+            print FILE "1;";
+            close FILE;
+            $output .= "Created $controller (chmod 755) ...\n";
+        }
+        else {
+          $output .= "Aborted, $controller already exists!\n";
+        }
+    }
+    else {
+        $output .= "Failed making model $controller.\n";
+        exit;
+    }
+}
+
+sub makectrl {
+    my $data       = shift;
+    my $controller = shift;
+    my $output     = shift;
+    my $root_path  = getcwd . "/sweet/application/Controller/";
+    my ( $module_name, $module_path ) = ();
+    $controller =~ s/\.pm$//;
+    $controller =~ s/[a-zA-Z0-9]\://g;
+    if ($controller) {
+
+        if ( $controller =~ /[\:\\\/\-]/ ) {
+            my @folders = split /[\:\\\/\-]/, $controller;
+            @folders = map( ucfirst, @folders );
+            $module_name = "Controller::" . join( "::", @folders );
+            $controller = pop(@folders) . ".pm";
+
+            # make folders
+            my $tpath = $root_path;
+            foreach my $path (@folders) {
+                unless ( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
+                }
+                $tpath = "$tpath$path/";
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_name = "Controller::" . ucfirst $controller;
+            $module_path = $root_path . ucfirst($controller) . ".pm";
+        }
+
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "package $module_name;\n";
+            print FILE "\n";
+            print FILE "=head1 NAME\n";
+            print FILE "\n";
+            print FILE "$module_name - Controller Description.\n";
+            print FILE "\n";
+            print FILE "=cut\n";
+            print FILE "\n";
+            print FILE "sub _begin {\n";
+            print FILE "    my ( \$self, \$s ) = \@_;\n";
+            print FILE "}\n";
+            print FILE "\n";
+            print FILE "sub _index {\n";
+            print FILE "    my ( \$self, \$s ) = \@_;\n";
+            print FILE "}\n";
+            print FILE "\n";
+            print FILE "sub _end {\n";
+            print FILE "    my ( \$self, \$s ) = \@_;\n";
+            print FILE "}\n";
+            print FILE "\n";
+            print FILE "$data\n" if $data;
+            print FILE "\n";
+            print FILE "1;";
+            close FILE;
+            $output .= "Created $controller (chmod 755) ...\n";
+        }
+        else {
+            $output .= "Aborted, $controller already exists!\n";
+        }
+    }
+    else {
+        $output .= "Failed making controller $controller.\n";
+        exit;
+    }
+}
+
+sub makeview {
+    my $data       = shift;
+    my $controller = shift;
+    my $output     = shift;
+    my $root_path  = getcwd . "/sweet/application/View/";
+    my ( $module_name, $module_path ) = ();
+    $controller =~ s/\.pm$//;
+    $controller =~ s/[a-zA-Z0-9]\://g;
+    if ($controller) {
+
+        if ( $controller =~ /[\:\\\/\-]/ ) {
+            my @folders = split /[\:\\\/\-]/, $controller;
+            @folders = map( ucfirst, @folders );
+            $module_name = "View::" . join( "::", @folders );
+            $controller = pop(@folders) . ".pm";
+
+            # make folders
+            my $tpath = $root_path;
+            foreach my $path (@folders) {
+                unless ( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
+                }
+                $tpath = "$tpath$path/";
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_name = "View::" . ucfirst $controller;
+            $module_path = $root_path . ucfirst($controller) . ".pm";
+        }
+
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "package $module_name;\n";
+            print FILE "\n";
+            print FILE "=head1 NAME\n";
+            print FILE "\n";
+            print FILE "$module_name - View Description.\n";
+            print FILE "\n";
+            print FILE "=cut\n";
+            print FILE "\n";
+            print FILE "$data\n" if $data;
+            print FILE "\n";
+            print FILE "1;";
+            close FILE;
+            $output .= "Created $controller (chmod 755) ...\n";
+        }
+        else {
+            $output .= "Aborted, $controller already exists!\n";
+        }
+    }
+    else {
+        $output .= "Failed making view $controller.\n";
+        exit;
+    }
+}
+
+sub makefile {
+    my $data       = shift;
+    my $controller = shift;
+    my $output     = '';
+    my $root_path  = getcwd . "/";
+    my ( $module_name, $module_path ) = ();
+    if ($controller) {
+        if ( $controller =~ /[\\\/\-]/ ) {
+            my @folders = split /[\\\/\-]/, $controller;
+            $controller = pop(@folders);
+
+            # make folders
+            my $tpath = $root_path;
+            foreach my $path (@folders) {
+                unless ( -e "$tpath$path" ) {
+                    mkdir "$tpath$path";
+                    chmod 0755, "$tpath$path";
+                }
+                $tpath = "$tpath$path/";
+            }
+            $module_path = $root_path . join( "/", @folders ) . "/$controller";
+        }
+        else {
+            $module_path = $root_path . $controller;
+        }
+
+        # create controller
+        if ( not -e $module_path ) {
+            open FILE,
+              ">$module_path" || exit warn "Error creating $controller, $!";
+            print FILE "$data\n" if $data;
+            close FILE;
+            $output .= "Created file /$controller (chmod 755) ...\n";
+        }
+        else {
+            $output .= "Aborted, $controller already exists!\n";
+        }
+    }
+    else {
+        $output .= "Failed making $controller.\n";
+    }
+    return $output;
+}
+
+# cli -----------------------------------------------------------------------
+
+sub make {
+  my $c = shift;
+  if ($c->options->{script}) {
+    return 
+    makefile($bpcode->{script}, '.pl')          .
+    makefile($bpcode->{htaccess}, '.htaccess')  .
+    makefile($bpcode->{tester}, '.t');
+  }
+  else {
+    return makeapp();
+  }
+}
+
+sub model {
+  my $c = shift;
+  if ($c->options->{name}) {
+    return makemodl($c->options->{name})
+  }
+  else {
+    return $usage->{model};
+  }
+}
+
+sub view {
+  my $c = shift;
+  if ($c->options->{name}) {
+    return makeview($c->options->{name})
+  }
+  else {
+    return $usage->{view};
+  }
+}
+
+sub ctrl {
+  my $c = shift;
+  if ($c->options->{name}) {
+    return makectrl($c->options->{name})
+  }
+  else {
+    return $usage->{ctrl};
+  }
+}
+
+sub help {
+  my $c = shift;
+  my $u =
+  q/
+Usage: sweetpea command [arguments]
+
+Available Commands:
+    ctrl        create a boiler-plate SweetPea controller
+    help        show syntax and available commands
+    make        build application structure with boiler-plate code
+    model       create a boiler-plate SweetPea model
+    view        create a boiler-plate SweetPea view
+    
+* Get more help, use sweetpea help --cmd=command, e.g. sweetpea help --cmd=make
+/;
+  
+  if ($c->options->{cmd} && $usage->{$c->options->{cmd}}) {
+    return $usage->{$c->options->{cmd}};
+  }
+  else {
+    return $u;
+  }
+}
+
+App::Rad->run;
+
+__END__
+
+=head1 NAME
+
+SweetPea - Rapid Application Development Utility
+
+=head1 SYNOPSIS
+
+sweetpea [options] [params]
+
+ Options:
+   -help            brief help message
+   -man             full documentation
+
+   -makeapp         generates default application tree
+   -makemodl        generates a bolier-plate Model
+   -makeview        generates a bolier-plate View
+   -makectrl        generates a bolier-plate Controller
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+B<sweetpea.pl> is used to generate the initial application structure and any
+additional Models, Views, and/or Controllers you may need.
+
+=cut

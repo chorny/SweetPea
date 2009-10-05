@@ -19,24 +19,7 @@ APPLICATION INSTALLATION
 Navigate to the directory where you will be build the application and run:
 
 	... at the cli (command line interface)
-    
-	# download, test and install
-	cpan SweetPea
-	
-	# build your skeleton application
-	cd web_server_root/htdocs/my_new_application
-	perl -MSweetPea -e makeapp
-	
-	> Created file /sweet/App.pm (chmod 755) ...
-	> Created file /.pl (chmod 755) ...
-	> Created file /.htaccess (chmod 755) ...
-	> Creat....
-	> ...
-	
-	# in the generated .pl file (change the shebang/path to perl if neccessary)
-	#!/usr/bin/perl
-	
-	> Done. Simple, I know.
+	> sweetpea make
 
 SUPPORT AND DOCUMENTATION
 

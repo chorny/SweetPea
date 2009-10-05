@@ -6,6 +6,10 @@
 -   [-] Add tests folder (with starter tests) for testing generated app.
 -   [-] Add demos/demo links to the documentation.
 -   [-] Write Tests
+-   [-] Add logging by checking debug array during _shutdown
+-   [-] Add more helper methods, e.g. file_handling, uploading, force_download, etc
+-   [-] Add ability to test and debug routes with the console
+-   [-] Auto-routing to Root-level actions no longer working
 
 #   completed
 -   [x] Add support for variable routes, must include support for auto-routes
