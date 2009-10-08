@@ -11,7 +11,7 @@ my $s = sweet->routes({
         my $s = shift;
         ok($s->file('>', $s->path('sweetpea.test.txt'), 'This is a test'), 'file creation');
         is($s->file('<', $s->path('sweetpea.test.txt')), 'This is a test', 'read file contents');
-        $s->file('x', 'sweetpea.test.txt');
+        $s->file('x', $s->path('sweetpea.test.txt'));
         $s->debug('ran session tests...');
         $s->output('debug', 'cli');
     }
