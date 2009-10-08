@@ -24,3 +24,4 @@ requires:
   App::Rad: 0
   Test::More: 0
 version: 2.11
+

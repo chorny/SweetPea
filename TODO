@@ -1,10 +1,9 @@
 # SweetPea Todo List
 
 #   bugs
-    [-] root-level route failure after 3 inline url params
+    [x] root-level route failure after 3 inline url params
 
 #   pending
--   [-] Add wildcard operator to routing
 -   [-] Add demos/demo links to the documentation.
 -   [-] Add logging by checking debug array during _shutdown
 
@@ -27,6 +26,7 @@
 -   [x] Write Tests
 -   [x] Add ability to test and debug routes with the console
 -   [x] Auto-routing to Root-level actions no longer working (Fixed)
+-   [x] Add wildcard operator to routing
 
 #   depreciated
 -   [d] Implement a method to dump auto-routes table to an includable routes.pl file.
@@ -35,6 +35,6 @@
 -   [d] Add tests folder (with starter tests) for testing generated app.
 
 #   needed methods/functions
--   [-] file handling, saving, writing, etc
--   [-] file uploading
--   [-] force download
+-   [x] file handling, saving, writing, etc
+-   [x] file uploading
+-   [x] force download

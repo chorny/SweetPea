@@ -14,7 +14,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.31';
+our $VERSION = '2.32';
 
 sub new {
     my $class = shift;
@@ -240,16 +240,18 @@ sub _init_dispatcher {
     # set default action if action not defined
     # do recursive uri analysis
     my @action_params = ();    
-    if ( not exists $dispatch{$path} ) {
+    if ( ref($handler) ne "CODE" ) {
         
         if (exists $dispatch{"$controller/_index"}) {
             $handler = $dispatch{"$controller/_index"};
         }
-        
+    }
+    
+    if ( ref($handler) ne "CODE" ) {        
         # start recursive uri analysis
         my @controller = split /\//, $controller;
-        
-        for (my $i = 0; $i < @controller; $i++) {
+        my $ctrls_count = @controller;
+        for (my $i = 0; $i < $ctrls_count; $i++) {
             push @action_params, pop @controller;
             if (@controller <= 1) {
                 if (exists $dispatch{'/'}) {
@@ -272,26 +274,61 @@ sub _init_dispatcher {
                 last;
             }
         }
-        
+    }
+    
+    if ( ref($handler) ne "CODE" ) {        
+        # ok now we're getting desperate,
+        # lets convert actions with inline params and wildcard into regexs and
+        # do a bit of pattern matching
+        my $url = $controller;
+        foreach my $action (keys %{$self->application->{variable_actions}}) {
+            my $pattern = $action;
+            if ($pattern =~ /\*/) {
+                $pattern =~ s/\*/\(\.\*\)/;
+                if ($url =~ m/$pattern/) {
+                    if ($0 && $1) {
+                        $self->cgi->param(-name => '*', -value => $1);
+                        $handler = $dispatch{ $action };
+                        $self->application->{'url'}->{controller} = $action;
+                        last;
+                    }
+                }
+            }
+            elsif ($pattern =~ /\:([\w]+)/) {
+                my @keys = ($pattern =~ /\:([\w]+)/g);
+                $pattern =~ s/\:[\w]+/\(\.\*\)/gi;
+                my @values = $url =~ /$pattern/;
+                if (scalar(@keys) == scalar(@values)) {
+                    for (my $i = 0; $i < @keys; $i++) {
+                        $self->cgi->param(-name => $keys[$i],
+                                          -value => $values[$i]);
+                    }
+                    $handler = $dispatch{ $action };
+                    $self->application->{'url'}->{controller} = $action;
+                    last;
+                }
+            }
+            # backup    #my ($start, $end) = split (/\*/, $url);
+                        #my $finder = "($start)" . '(.*)' . "($end)";
+                        #$start =~ s/(^\/|\/$)//g; $end =~ s/(^\/|\/$)//g;
+                        #$url = "/$start/$end";
+        }
+    }
+    
+    if ( ref($handler) ne "CODE" ) {        
         # last resort, revert to root controller index action
         if (exists $dispatch{"/root/_index"} && (!$dispatch{"$controller"}
             && !$dispatch{"$controller/_index"})) {
             $handler = $dispatch{"/root/_index"};
         }        
     }
-    # old way
-    #unless ( exists $dispatch{$path} ) {
-    #    $handler = $dispatch{"$controller/_index"}
-    #      if exists $dispatch{"$controller/_index"};
-    #    $handler = $dispatch{"/root/_index"}
-    #      if exists $dispatch{"/root/_index"}
-    #          && !$dispatch{"$controller/_index"};
-    #}
-
+    
     # parse and distribute action params if available
-    if (defined $self->application->{action_params}->{$controller}) {
-        $self->cgi->param(-name => $_, -value => pop @action_params)
-        for @{$self->application->{action_params}->{$controller}};
+    if ( ref($handler) eq "CODE" ) {
+        if (defined $self->application->{action_params}->{$controller} && @action_params) {
+            $self->cgi->param(-name => $_, -value => pop @action_params)
+            for @{$self->application->{action_params}->{$controller}};
+        }
     }
 
     if ( ref($handler) eq "CODE" ) {
@@ -301,34 +338,20 @@ sub _init_dispatcher {
           if exists $dispatch{"/root/_startup"};
 
         #run user-defined begin routine or default to root begin
-
         $dispatch{"$controller/_begin"}->($self)
           if exists $dispatch{"$controller/_begin"};
         $dispatch{"/root/_begin"}->($self)
           if exists $dispatch{"/root/_begin"}
               && !$dispatch{"$controller/_begin"};
 
-        # run both as opposed to either or global or local
-        #$dispatch{"/root/_begin"}->($self)
-        #  if exists $dispatch{"/root/_begin"};
-        #$dispatch{"$controller/_begin"}->($self)
-        #  if exists $dispatch{"$controller/_begin"};
-
         #run user-defined response routines
         $handler->($self);
 
         #run user-defined end routine or default to root end
-
         $dispatch{"$controller/_end"}->($self)
           if exists $dispatch{"$controller/_end"};
         $dispatch{"/root/_end"}->($self)
           if exists $dispatch{"/root/_end"} && !$dispatch{"$controller/_end"};
-
-        # run both as opposed to either or global or local
-        #$dispatch{"$controller/_end"}->($self)
-        #  if exists $dispatch{"$controller/_end"};
-        #$dispatch{"/root/_end"}->($self)
-        #  if exists $dispatch{"/root/_end"};
 
         #run master _shutdown routine
         $dispatch{"/root/_shutdown"}->($self)
@@ -425,6 +448,47 @@ sub request_method {
     return $ENV{REQUEST_METHOD};
 }
 
+sub force_download {
+    my ($self, $file) = @_;
+    if (-e $file) {
+        my $name = $file =~ /\/?([\w\.]+)$/ ? $1 : $file;
+        my $ext  = $name =~ s/(\.\w+)$/$1/ ? $1 : '';
+        my $data = $self->file('<', $file);
+        if ($data) {
+            my $ctype = "application/force-download";
+            $ctype = "application/pdf"
+                if $ext eq ".pdf";
+            $ctype = "application/octet-stream"
+                if $ext eq ".exe";
+            $ctype = "application/zip"
+                if $ext eq ".zip";
+            $ctype = "application/msword"
+                if $ext eq ".doc";
+            $ctype = "application/vnd.ms-excel"
+                if $ext eq ".xls";
+            $ctype = "application/vnd.ms-powerpoint"
+                if $ext eq ".ppt";
+            $ctype = "image/jpg"
+                if $ext eq ".jpg" || $ext eq ".jpeg";
+            $ctype = "image/gif"
+                if $ext eq ".gif";
+            $ctype = "image/png"
+                if $ext eq ".png";
+            $ctype = "text/plain"
+                if $ext eq ".txt";
+            $ctype = "text/html"
+                if $ext eq ".html" || $ext eq ".htm";
+
+            print("Content-Type: $ctype\n");
+            print("Content-Transfer-Encoding: binary\n");
+            print("Content-Length: " . length($data) . "\n" );
+            print("Content-Disposition: attachment; filename=\"$name\";\n\n");
+            print("$data");
+            exit;
+        }
+    }
+}
+
 sub controller {
     my ( $self, $path ) = @_;
     return $self->uri->{controller} . ( $path ? $path : '' );
@@ -438,7 +502,7 @@ sub action {
 sub uri {
     my ( $self, $path ) = @_;
     return $self->{store}->{application}->{'url'} unless $path;
-    $path =~ s/^\///; # remove leading slash for se with root
+    $path =~ s/^\///; # remove leading slash for use with root
     return
         $self->cgi->url( -base => 1 )
       . $self->{store}->{application}->{'url'}->{'root'}
@@ -449,8 +513,9 @@ sub url { return shift->uri(@_); }
 
 sub path {
     my ( $self, $path ) = @_;
+    $path =~ s/^\///;
     return $path
-      ? $self->{store}->{application}->{'path'} . $path
+      ? $self->{store}->{application}->{'path'} . "/$path"
       : $self->{store}->{application}->{'path'};
 }
 
@@ -471,6 +536,58 @@ sub flash {
     }
     else {
         return $self->session->param('_FLASH');
+    }
+}
+
+sub file {
+    my ($self, $op, $file, @content) = @_;
+    my $output;
+    if ($file) {
+        if (grep {/^(\<|\>|\>\>)$/} $op) {
+            if ($op =~ /\>/) {
+                $output = join "\n", @content;
+                open FILE, $op, $file;
+                print FILE $output;
+                close FILE;
+            }
+            else {
+                if (-e $file) {
+                    open FILE, $op, $file;
+                    while (<FILE>) {
+                        $output .= $_;
+                    }
+                    close FILE;
+                }
+            }
+        }
+        elsif ($op eq 'x') {
+            unlink $file;
+            return 1;
+        }
+    }
+    return $output;
+}
+
+sub upload {
+    my ($self, $upload_field, $location, $filename) = @_;
+    my $fh = $self->cgi->upload($upload_field);
+    unless ($filename) {
+        $filename =
+            $self->param($upload_field) =~ /([\w\.]+)$/ ?
+                $1 : time();
+    }
+    $location =~ s/\/$//;
+    $location = '.' unless $location;
+    if ( not -e "$location/$filename" ) {
+        open (OUTFILE, ">$location/$filename");
+        while (<$fh>) {
+              print OUTFILE $_;
+        }
+        close OUTFILE;
+        return $filename;
+    }
+    else {
+        return 0;
     }
 }
 
@@ -587,12 +704,32 @@ sub unplug {
 sub routes {
     my ( $self, $routes ) = @_;
     map {
-        my $url = $_;
-        my @params = $url =~ m/\:([\w]+)/g;
-        $url =~ s/\:[\w]+(\/)?//g; $url =~ s/\/$//;
-        $url = '/' unless $url;
-        $self->application->{actions}->{$url} = $routes->{$_};
-        $self->application->{action_params}->{$url} = [@params];
+        my $pat = $_;
+        my $url = $pat;
+        if ($url =~ m/\:/) {
+            $self->application->{variable_actions}->{$url} = $routes->{$pat};
+            # store for variable processing
+            if ($url =~ /\:\w+$/ && $url !~ /\:\w+\/[^\:]+\:\w+/) {
+                # inline parameter processing
+                my @params = $url =~ m/\:([\w]+)/g;
+                $url =~ s/\:[\w]+(\/)?//g; $url =~ s/\/$//;
+                $url = '/' unless $url;
+                $self->application->{actions}->{$url} = $routes->{$pat};
+                $self->application->{action_params}->{$url} = [@params];
+            }
+            else {
+                $self->application->{actions}->{$url} = $routes->{$pat};
+            }
+        }
+        elsif ($url =~ m/\*/) {
+            $self->application->{variable_actions}->{$url} = $routes->{$pat};
+            # store for wildcard processing
+            next if scalar( my @cnt = $url =~ m/\*/g ) > 1;
+            $self->application->{actions}->{$url} = $routes->{$pat};
+        }
+        else {
+            $self->application->{actions}->{$url} = $routes->{$url};
+        }
     } keys %{$routes};
     return $self;
 }
@@ -632,7 +769,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.31
+Version 2.32
 
 =cut
 
@@ -1132,6 +1269,57 @@ I<pl>
 
 =cut
 
+=head1 ROUTING/DISPATCHING
+
+    The routes method like most popular routing mechanisms allows you to map
+    urls to routines. SweetPea by default uses an auto-discovery mechanism on
+    the controllers folder to create routes automatically, however there are
+    times when additional flexibility is required.
+    
+    There are two types of routes defined when your application is executed,
+    auto-routing and manual routing. As stated before, auto-routing
+    automatically builds routes base on the Controllers in your applications
+    controllers folder (which is created automatically when you "make" an app
+    using the sweetpea cli). Manual routing is usually established in the
+    dispatcher file as follows:
+    
+    sweet->routes({
+        
+        '/' => sub {
+            shift->html('Index page much!');
+        }
+        
+    })->new;
+    
+    SweetPea routing has support for inline URL parameters and wildcard
+    operators. See examples below:
+    
+    sweet->routes({
+        
+        '/:goto' => sub {
+            my $s = shift;
+            $s->html('Your trying to get to ' . $s->param('goto') );
+            ...
+        },
+        '/download/*' => sub {
+            my $s = shift;
+            $s->redirect($s->param('*')) if $s->param('*');
+            ...
+        },
+        '/dl/:file/:from' => sub {
+            my $s = shift;
+            if ($s->param('file')) {
+                my $contents = $s->file('<',
+                    $s->param('from') . '/' . $s->param('file');
+                );
+            }
+            ...
+        }
+        
+    })->run;
+
+=cut
+
 =head1 CONTROLLERS AND ACTIONS
 
     Controllers are always created in the sweet/controller folder and defined
@@ -1196,27 +1384,6 @@ that comes with creating web applications models, views and controllers.
     # e.g. at the command line
     sweetpea view email/html
     > Created file /sweet/application/View/Email/Html.pm (chmod 755) ...
-
-=cut
-
-=head1 APPLICATION STYLING
-
-    Application Styling, not yet implemented, is a form of user/community
-    defined scaffolding which allows SweetPea developers to extend
-    RAD (Rapid Application Development) functionality using the core
-    helper methods (see Helper Methods). These scaffolding templates will be
-    accessible via the SweetPea::Style::MyStyle namespace.
-    
-    e.g. SweetPea::Style::Default
-    package SweetPea::Style::Default;
-    use SweetPea;
-    
-    sub makemodl {
-    my $sub = 'sub process {...}';
-        SweetPea::makemodl( $sub, 'schema/foo' );
-    }
-    
-    # More information will be made available soon.
 
 =cut
 
@@ -1412,6 +1579,32 @@ that comes with creating web applications models, views and controllers.
 
     The request_method determines the method (either Get or Post) used
     to requests the current action.
+    
+    if ( $s->request_method eq 'get' ) {
+        ...
+    }
+
+=cut
+
+=head2 file
+
+    The file method assists in creating, editing and deleting files on the
+    file system without the to need to create and close file handles manually.
+    
+    $s->file('>', 'somefile.txt');  # write
+    $s->file('>>', 'somefile.txt'); # append
+    $s->file('<', 'somefile.txt');  # read
+    $s->file('x', 'somefile.txt');  # delete
+    
+
+=cut
+
+=head2 force_download
+
+    The force_download method when used prompts the user to download the
+    specified file without redirect.
+    
+    $s->force_download('test.txt');
 
 =cut
 
@@ -1477,6 +1670,17 @@ that comes with creating web applications models, views and controllers.
     array of data stored in it and clears itself
     
     # @data contains ['this is a test','or maybe not']
+
+=cut
+
+=head2 upload
+
+    The upload method copies a file from the users computer to the server
+    with the option of renaming the file.
+    
+    my $file = $s->upload('input_file_field');
+    my $file = $s->upload('input_file_field', 'location');
+    my $file = $s->upload('input_file_field', 'location', 'new_file_name');
 
 =cut
 
@@ -1558,7 +1762,7 @@ that comes with creating web applications models, views and controllers.
 
     The routes method like most popular routing mechanisms allows you to map
     urls to routines. SweetPea by default uses an auto-discovery mechanism on
-    the controllers folder to create routes automatically, however thier are
+    the controllers folder to create routes automatically, however there are
     times when additional flexibility is required. This is where the routes
     method is particularly useful, also the routes method supports inline
     url parameters e.g. http:/localhost/route/param1/param2. The easiest way
@@ -1599,10 +1803,10 @@ that comes with creating web applications models, views and controllers.
     auto-routing and manual routing. As stated before, auto-routing
     automatically builds routes base on the Controllers in your applications
     controllers folder. Manual routing is usually established in the dispatcher
-    file as outlined above. Automatically generated routes take priority over
-    manually created ones, so if a manually create route exists that occupies
-    the same url as an auto-discovered one, the manually create one will be
-    overwritten.
+    file as outlined above. Manually created routes take priority over
+    automatically generated ones, so if an automatically generated route exists
+    that occupies the path of a manually defined one, the manually create one
+    will be override the automatically created one.
 
 =cut
 
