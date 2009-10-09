@@ -2,10 +2,19 @@
 
 #   bugs
     [x] root-level route failure after 3 inline url params
+    [-] .t test script produces error when run without params
+    [-] Root.pm & Sweet.pm generated with wrong/bad permissions
+    [-] force_download should be able to take content instead of filename as arg
 
 #   pending
+-   [-] .t test script should render both html and debug information and output it to .logs dir
+-   [-] Rethink how the generated test script processes existing routes
+-   [-] Fix sweetpea cli to create folders for ops crtl, model, and view
+-   [-] CPAN-Testers reports calling plugin on unloaded object(App)
+-   [-] Rethink permissions and location of security folder
 -   [-] Add demos/demo links to the documentation.
 -   [-] Add logging by checking debug array during _shutdown
+-   [-] Design Sweet.pm to showcase sweetpea features
 
 #   completed
 -   [x] Add support for variable routes, must include support for auto-routes
