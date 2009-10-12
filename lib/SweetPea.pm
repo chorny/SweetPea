@@ -14,7 +14,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.32';
+our $VERSION = '2.33';
 
 sub new {
     my $class = shift;
@@ -41,8 +41,10 @@ sub run {
 sub test {
     my ($self, $route) = @_;
     # set up testing environment
+    $route = '/' unless $route;
     $self->{store}->{application}->{test}->{route} = 
-    $ENV{SCRIPT_NAME} = "/.pl$route";
+    $ENV{SCRIPT_NAME}   = "/.pl";
+    $ENV{PATH_INFO}     = "$route";
     $self->run;
 }
 
@@ -99,7 +101,9 @@ sub _plugins {
 
     # load non-core plugins from App.pm
     eval 'use App';
-    App->plugins($self) unless $@;
+    unless ($@) {
+        eval "App->plugins($self)";
+    }
 
     return $self;
 }
@@ -181,181 +185,86 @@ sub _self_check {
 
 sub _init_dispatcher {
     my $self = shift;
-    my $actions = $self->_load_path_and_actions();
-    my %dispatch = $actions ? %{ $actions } : ();
+    my $actions = $self->_load_path_and_actions() || {};
     my $path;
     
+    # url parser - this is informative
+    $self->_url_parser($actions);
+    
+    my $controller  = $self->{store}->{application}->{url}->{controller};
+    my $action      = $self->{store}->{application}->{url}->{action};
+    my $request     = $self->{store}->{application}->{url}->{here};
+    
+    # check/balance
+       $controller  = '/' unless $controller;
+    
+    my $handler     = $actions->{$controller} if $controller;
+    my $package     = $controller;
+    
+    # hack
+    if ($action) {
+        $package =~ s/\/$action$//;
+    }
+    elsif ($package) {
+        if ($package eq '/') {
+            $package = '';
+        }
+    }
+
+    # alter environment for testing
     if ($self->{store}->{application}->{test}->{route}) {
-        $path = $self->{store}->{application}->{test}->{route};
+        $controller = $request;
+        $package = '';
     }
-    else {
-        $path = $self->cgi->path_info();
-    }
-    
-    $path =~ s/^\/\.pl//;
-    $path =~ s/\/$//;
-    $path = '/' unless $path;
-    
-    my $handler = $dispatch{$path};
-
-    #set uri vars
-    
-    # got wise, letting cgi handle input for security purposes
-    # my $bse_path = $ENV{SCRIPT_NAME};
-    my $bse_path = $self->cgi->url(-absolute=>1);
-    
-    my $cur_path = $self->cgi->url();
-    my ( @links, $controller, $action );
-    
-    if ($bse_path) {
-        $bse_path =~
-          s/\.pl$//;    # gets the path to root (where the .pl file is located)
-        $cur_path =~ s/.*$bse_path//;
-        $cur_path = $bse_path . $cur_path;
-    }
-
-    # get controller and action segments
-    if ( ref($handler) eq "CODE" ) {
-        @links      = split /\//, $path;    # :)
-        $action     = pop @links;
-        $controller = join '/', @links;
-    }
-    else {
-        $controller = $path;
-    }
-
-    $self->application->{'url'}->{root}       = $bse_path;
-    $self->application->{'url'}->{here}       = $cur_path;
-    $self->application->{'url'}->{path}       = $path;
-    $self->application->{'url'}->{controller} = $controller;
-    $self->application->{'url'}->{action}     = $action;
 
     # restrict access to hidden methods (methods prefixed with an underscore)
-    if ( $path =~ /.*\/_.*$/ ) {
-        print $self->cgi->header, $self->cgi->start_html('Not found'),
-          $self->cgi->h1('Access Denied'), $self->cgi->end_html;
+    if ( $request =~ /.*\/_\w+$/ ) {
+        print
+        $self->cgi->header,
+        $self->cgi->start_html('Access Denied To Private Action'),
+        $self->cgi->h1('Access Denied'),
+        $self->cgi->end_html;
         exit;
     }
 
-    # set default action if action not defined
-    # do recursive uri analysis
-    my @action_params = ();    
-    if ( ref($handler) ne "CODE" ) {
-        
-        if (exists $dispatch{"$controller/_index"}) {
-            $handler = $dispatch{"$controller/_index"};
-        }
-    }
-    
-    if ( ref($handler) ne "CODE" ) {        
-        # start recursive uri analysis
-        my @controller = split /\//, $controller;
-        my $ctrls_count = @controller;
-        for (my $i = 0; $i < $ctrls_count; $i++) {
-            push @action_params, pop @controller;
-            if (@controller <= 1) {
-                if (exists $dispatch{'/'}) {
-                    $handler = $dispatch{'/'};
-                    $self->application->{'url'}->{controller} =
-                    $controller = '/';
-                    last;
-                }
-            }
-            elsif (exists $dispatch{ join("/", @controller) }) {
-                $handler = $dispatch{ join("/", @controller) };
-                $self->application->{'url'}->{controller} = $controller =
-                join("/", @controller);
-                last;
-            }
-            elsif (exists $dispatch{ join("/", @controller) . "/_index" }) {
-                $handler = $dispatch{ join("/", @controller) . "/_index" };
-                $self->application->{'url'}->{controller} = $controller =
-                join("/", @controller);
-                last;
-            }
-        }
-    }
-    
-    if ( ref($handler) ne "CODE" ) {        
-        # ok now we're getting desperate,
-        # lets convert actions with inline params and wildcard into regexs and
-        # do a bit of pattern matching
-        my $url = $controller;
-        foreach my $action (keys %{$self->application->{variable_actions}}) {
-            my $pattern = $action;
-            if ($pattern =~ /\*/) {
-                $pattern =~ s/\*/\(\.\*\)/;
-                if ($url =~ m/$pattern/) {
-                    if ($0 && $1) {
-                        $self->cgi->param(-name => '*', -value => $1);
-                        $handler = $dispatch{ $action };
-                        $self->application->{'url'}->{controller} = $action;
-                        last;
-                    }
-                }
-            }
-            elsif ($pattern =~ /\:([\w]+)/) {
-                my @keys = ($pattern =~ /\:([\w]+)/g);
-                $pattern =~ s/\:[\w]+/\(\.\*\)/gi;
-                my @values = $url =~ /$pattern/;
-                if (scalar(@keys) == scalar(@values)) {
-                    for (my $i = 0; $i < @keys; $i++) {
-                        $self->cgi->param(-name => $keys[$i],
-                                          -value => $values[$i]);
-                    }
-                    $handler = $dispatch{ $action };
-                    $self->application->{'url'}->{controller} = $action;
-                    last;
-                }
-            }
-            # backup    #my ($start, $end) = split (/\*/, $url);
-                        #my $finder = "($start)" . '(.*)' . "($end)";
-                        #$start =~ s/(^\/|\/$)//g; $end =~ s/(^\/|\/$)//g;
-                        #$url = "/$start/$end";
-        }
-    }
-    
+    # try global index
     if ( ref($handler) ne "CODE" ) {        
         # last resort, revert to root controller index action
-        if (exists $dispatch{"/root/_index"} && (!$dispatch{"$controller"}
-            && !$dispatch{"$controller/_index"})) {
-            $handler = $dispatch{"/root/_index"};
+        if (exists $actions->{"/root/_index"}
+            && (!$actions->{"$controller"}
+            && !$actions->{"$package/_index"})) {
+            $handler = $actions->{"/root/_index"};
         }        
     }
     
-    # parse and distribute action params if available
-    if ( ref($handler) eq "CODE" ) {
-        if (defined $self->application->{action_params}->{$controller} && @action_params) {
-            $self->cgi->param(-name => $_, -value => pop @action_params)
-            for @{$self->application->{action_params}->{$controller}};
-        }
-    }
-
     if ( ref($handler) eq "CODE" ) {
 
         #run master _startup routine
-        $dispatch{"/root/_startup"}->($self)
-          if exists $dispatch{"/root/_startup"};
+        $actions->{"/root/_startup"}->($self)
+          if exists $actions->{"/root/_startup"};
 
         #run user-defined begin routine or default to root begin
-        $dispatch{"$controller/_begin"}->($self)
-          if exists $dispatch{"$controller/_begin"};
-        $dispatch{"/root/_begin"}->($self)
-          if exists $dispatch{"/root/_begin"}
-              && !$dispatch{"$controller/_begin"};
+        $actions->{"$package/_begin"}->($self)
+          if exists $actions->{"$package/_begin"};
+        
+        $actions->{"/root/_begin"}->($self)
+          if exists $actions->{"/root/_begin"}
+            && !$actions->{"$package/_begin"};
 
         #run user-defined response routines
         $handler->($self);
 
         #run user-defined end routine or default to root end
-        $dispatch{"$controller/_end"}->($self)
-          if exists $dispatch{"$controller/_end"};
-        $dispatch{"/root/_end"}->($self)
-          if exists $dispatch{"/root/_end"} && !$dispatch{"$controller/_end"};
+        $actions->{"$package/_end"}->($self)
+          if exists $actions->{"$package/_end"};
+        
+        $actions->{"/root/_end"}->($self)
+          if exists $actions->{"/root/_end"}
+            && !$actions->{"$package/_end"};
 
         #run master _shutdown routine
-        $dispatch{"/root/_shutdown"}->($self)
-          if exists $dispatch{"/root/_shutdown"};
+        $actions->{"/root/_shutdown"}->($self)
+          if exists $actions->{"/root/_shutdown"};
 
         #run pre-defined response routines
         $self->start();
@@ -366,10 +275,141 @@ sub _init_dispatcher {
     else {
 
         # print http header
-        print $self->cgi->header, $self->cgi->start_html('Not found'),
-          $self->cgi->h1('Not found'), $self->cgi->end_html;
+        print $self->cgi->header, $self->cgi->start_html('Resource Not Found'),
+          $self->cgi->h1('Not Found'), $self->cgi->end_html;
         exit;
     }
+}
+
+sub _url_parser {
+    my ($self, $actions) = @_;
+    # this allows us to deduce the web root, true current path, etc
+    
+    my  $script  = $self->{store}->{application}->{dispatcher} || '\.pl';
+    my  $root    = $self->cgi->script_name();
+        $root    =~ s/$script//;
+        $root    =~ s/(^\/+|\/+$)//g;
+        $root    = "/$root";
+    my  $here    = $self->cgi->path_info();
+        $here    =~ s/(^\/+|\/+$)//g;
+        $here    = "/$here";
+    my  $path    = $here;
+        $here    = $here ? "$root$here" : $root;
+        $here    =~ s/^\/// if $here =~ /^\/{2,}/;
+    
+    # A: action finding
+    $self->{store}->{application}->{'url'}->{root}       = $root;
+    $self->{store}->{application}->{'url'}->{here}       = $path;
+    $self->{store}->{application}->{'url'}->{path}       = $here;
+    
+    my ($controller, $action);
+    
+    # 1. check if the path specified has a corresponding action
+    if (ref($actions->{$path}) eq "CODE") {
+        if ($here =~ m/\//) {
+            my @act = split /\//, $path;
+            $action = pop @act;
+            $controller = join("/", @act) . ($action ? "/$action" : "");
+            $controller = "/$controller" if $controller !~ m/^\//;
+            $self->{store}->{application}->{'url'}->{controller} = $controller;
+            $self->{store}->{application}->{'url'}->{action}     = $action;
+            return 1;
+        }
+    }
+    
+    # 2. check if the path specified matches against inline url params
+    foreach my $a (reverse sort keys %{$actions}) {
+        my $pattern = $a;
+        if ($pattern =~ /\:([\w]+)/) {
+            my @keys = ($pattern =~ /\:([\w]+)/g);
+            $pattern =~ s/\:[\w]+/\(\.\*\)/gi;
+            my @values = $path =~ /$pattern/;
+            if (scalar(@keys) == scalar(@values)) {
+                for (my $i = 0; $i < @keys; $i++) {
+                    $self->cgi->param(-name => $keys[$i],
+                                      -value => $values[$i]);
+                }
+                $controller = "$a";
+                $action     = "";
+                $self->{store}->{application}->{'url'}->{controller} = $controller;
+                $self->{store}->{application}->{'url'}->{action}     = $action;
+                return 1;
+            }
+        }
+    }
+    
+    # 3. check if the path specified matched against a paths with wildcards
+    foreach my $a (reverse sort keys %{$actions}) {
+        my $pattern = $a;
+        if ($pattern =~ /\*/) {
+            $pattern =~ s/\*/\(\.\*\)/;
+            if ($path =~ m/$pattern/) {
+                if ($0 && $1) {
+                    $self->cgi->param(-name => '*', -value => $1);
+                    $controller = "$a";
+                    $action     = "";
+                    $self->{store}->{application}->{'url'}->{controller} = $controller;
+                    $self->{store}->{application}->{'url'}->{action}     = $action;
+                    return 1;
+                }
+            }
+        }
+    }
+    
+    # 4. perform recursion tests as a last ditch effort
+    if ($here =~ m/\//) {
+        my @acts = split /\//, $here;
+        my @trail = ();
+        my $possibilities = @acts;
+        for (my $i = 0; $i < $possibilities; $i++) {
+            my $a = $acts[$i];
+            if (@acts > 1) {
+                if (ref($actions->{join("/", @acts)}) eq "CODE") {
+                    $controller = join("/", @acts);
+                    $action     = "";
+                    $self->{store}->{application}->{'url'}->{controller} = $controller;
+                    $self->{store}->{application}->{'url'}->{action}     = $action;
+                    $self->cgi->param(-name => '*', -value => join("/", reverse @trail));
+                    return 1;
+                }
+                else {
+                    # wow, still nothing, look for local index
+                    if (ref($actions->{join("/", @acts)."/_index"}) eq "CODE") {
+                        $controller = join("/", @acts)."/_index";
+                        $action     = "_index";
+                        $self->{store}->{application}->{'url'}->{controller} = $controller;
+                        $self->{store}->{application}->{'url'}->{action}     = $action;
+                        $self->cgi->param(-name => '*', -value => join("/", reverse @trail));
+                        return 1;
+                    }
+                }
+                push @trail, pop @acts;
+            }
+            else {
+                if (ref($actions->{"/$acts[0]"}) eq "CODE") {
+                    $controller = "/$acts[0]";
+                    $actions    = "";
+                    $self->{store}->{application}->{'url'}->{controller} = $controller;
+                    $self->{store}->{application}->{'url'}->{action}     = $action;
+                    $self->cgi->param(-name => '*', -value => join("/", reverse @trail));
+                    return 1;
+                }
+                else {
+                    # this better work, look for local index
+                    if (ref($actions->{"/$acts[0]/_index"}) eq "CODE") {
+                        $controller = "/$acts[0]/_index";
+                        $action     = "_index";
+                        $self->{store}->{application}->{'url'}->{controller} = $controller;
+                        $self->{store}->{application}->{'url'}->{action}     = $action;
+                        $self->cgi->param(-name => '*', -value => join("/", reverse @trail));
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+    
+    return 0;
 }
 
 sub start {
@@ -448,7 +488,7 @@ sub request_method {
     return $ENV{REQUEST_METHOD};
 }
 
-sub force_download {
+sub push_download {
     my ($self, $file) = @_;
     if (-e $file) {
         my $name = $file =~ /\/?([\w\.]+)$/ ? $1 : $file;
@@ -505,8 +545,9 @@ sub uri {
     $path =~ s/^\///; # remove leading slash for use with root
     return
         $self->cgi->url( -base => 1 )
-      . $self->{store}->{application}->{'url'}->{'root'}
-      . $path;
+      . ( $self->{store}->{application}->{'url'}->{'root'} =~ /\/$/
+      ? "$self->{store}->{application}->{'url'}->{'root'}$path"
+      : "$self->{store}->{application}->{'url'}->{'root'}/$path" );
 }
 
 sub url { return shift->uri(@_); }
@@ -704,32 +745,9 @@ sub unplug {
 sub routes {
     my ( $self, $routes ) = @_;
     map {
-        my $pat = $_;
-        my $url = $pat;
-        if ($url =~ m/\:/) {
-            $self->application->{variable_actions}->{$url} = $routes->{$pat};
-            # store for variable processing
-            if ($url =~ /\:\w+$/ && $url !~ /\:\w+\/[^\:]+\:\w+/) {
-                # inline parameter processing
-                my @params = $url =~ m/\:([\w]+)/g;
-                $url =~ s/\:[\w]+(\/)?//g; $url =~ s/\/$//;
-                $url = '/' unless $url;
-                $self->application->{actions}->{$url} = $routes->{$pat};
-                $self->application->{action_params}->{$url} = [@params];
-            }
-            else {
-                $self->application->{actions}->{$url} = $routes->{$pat};
-            }
-        }
-        elsif ($url =~ m/\*/) {
-            $self->application->{variable_actions}->{$url} = $routes->{$pat};
-            # store for wildcard processing
-            next if scalar( my @cnt = $url =~ m/\*/g ) > 1;
-            $self->application->{actions}->{$url} = $routes->{$pat};
-        }
-        else {
-            $self->application->{actions}->{$url} = $routes->{$url};
-        }
+        my $url = $_;
+        $url =~ s/\/$// if $url =~ /\/$/ && length($url) > 1;
+        $self->application->{actions}->{$url} = $routes->{$_};
     } keys %{$routes};
     return $self;
 }
@@ -769,7 +787,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.32
+Version 2.33
 
 =cut
 
@@ -931,7 +949,7 @@ I<Controller::Root>
     and is executed first with each request. The _shutdown is executed last
     and cannot be overridden either.
 
-    # Controller::RootRoot.pm
+    # in Controller/Root.pm
     package Controller::Root;
     sub _startup { my ( $self, $s ) = @_; }
     sub _begin { my ( $self, $s ) = @_; }
@@ -1599,12 +1617,12 @@ that comes with creating web applications models, views and controllers.
 
 =cut
 
-=head2 force_download
+=head2 push_download
 
-    The force_download method when used prompts the user to download the
+    The push_download method when used prompts the user to download the
     specified file without redirect.
     
-    $s->force_download('test.txt');
+    $s->push_download('test.txt');
 
 =cut
 
@@ -1812,20 +1830,22 @@ that comes with creating web applications models, views and controllers.
 
 =head1 AUTHOR
 
-Al Newkirk, C<< <al at alnewkirk.com> >>
+Al Newkirk, C<< <al.newkirk at awnstudio.com> >> on irc as perletc or awnstudio
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-sweetpea at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=SweetPea>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to
+C<bug-sweetpea at rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=SweetPea>. I will be notified,
+and then you'll automatically be notified of progress on
+your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc SweetPea
-
+    perldoc sweetpea
+    perldoc SweetPea or perldoc SweetPea.pm
 
 You can also look for information at:
 

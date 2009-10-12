@@ -1,5 +1,5 @@
 #!perl
-use Test::More tests => 2;
+use Test::More tests => 3;
 BEGIN {
     use_ok('SweetPea');
 }
@@ -11,9 +11,10 @@ my $s = sweet->routes({
     '/test/three' => sub {
         my $s = shift;
         ok(1, 'route mapped');
-        #is($s->param('a'), '123', 'level-3.1 inline url parameter');
-        #is($s->param('b'), '456', 'level-3.2 inline url parameter');
-        #is($s->param('c'), '789', 'level-3.3 inline url parameter');
+        is($s->param('*'),
+           '123/456/789/abc/def/eig/hij/klm/nop',
+           '123/456/789/abc/def/eig/hij/klm/nop'
+        );
         
         # prevent printing headers
         $s->debug('ran adv routing tests...');

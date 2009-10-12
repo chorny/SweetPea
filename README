@@ -5,6 +5,21 @@ View, Controller) design pattern using useful concepts from Mojolicious, Catalys
 and other robust web frameworks. SweetPea has a short learning curve, is
 light-weight, as scalable as you need it to be, and requires little configuration.
 
+SYNOPSIS
+
+use SweetPea;
+sweet->routes({
+
+    '/' => sub {
+	shift->forward('/way');
+    },
+    
+    '/way' => sub {
+	shift->html('I am the way the truth and the light!');
+    }
+    
+})->run;
+
 INSTALLATION
 
 To install this module, run the following commands:

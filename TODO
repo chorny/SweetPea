@@ -2,21 +2,19 @@
 
 #   bugs
     [x] root-level route failure after 3 inline url params
-    [-] .t test script produces error when run without params
+    [x] .t test script produces error when run without params
     [-] Root.pm & Sweet.pm generated with wrong/bad permissions
-    [-] force_download should be able to take content instead of filename as arg
 
 #   pending
--   [-] .t test script should render both html and debug information and output it to .logs dir
--   [-] Rethink how the generated test script processes existing routes
+
 -   [-] Fix sweetpea cli to create folders for ops crtl, model, and view
 -   [-] CPAN-Testers reports calling plugin on unloaded object(App)
 -   [-] Rethink permissions and location of security folder
 -   [-] Add demos/demo links to the documentation.
--   [-] Add logging by checking debug array during _shutdown
--   [-] Design Sweet.pm to showcase sweetpea features
 
 #   completed
+-   [x] Design Sweet.pm to showcase sweetpea features
+-   [x] Rethink how the generated test script processes existing routes
 -   [x] Add support for variable routes, must include support for auto-routes
 -   [x] Flush session object after setting flash message. (maybe instead flush before any redirect)
 -   [x] Add routes which provides extra functionality (basic static routes).
@@ -42,6 +40,9 @@
 -   [d] Expand the on SweetPea::Style namespace (cummunity-driven custom application scaffolding) - moving to SweetPea::Application (entire coc framework)
 -   [d] Add web application basic functions (discuss sessions, cookies, databases, etc) called GETTING STARTED (After Boiler-Plate) - SweetPea::Application
 -   [d] Add tests folder (with starter tests) for testing generated app.
+-   [d] push_download should be able to take content instead of filename as arg
+-   [d] .t test script should render both html and debug information and output it to .logs dir
+-   [d] Add logging by checking debug array during _shutdown
 
 #   needed methods/functions
 -   [x] file handling, saving, writing, etc

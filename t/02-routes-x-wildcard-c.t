@@ -11,7 +11,8 @@ my $s = sweet->routes({
     '/*' => sub {
         my $s = shift;
         ok(1, 'route mapped');
-        is($s->param('*'), 'download/files.fosswire.com/2007/08/fwunixref.txt/via/pdf', 'random url w/wildcard param 1');
+        is($s->param('*'), 'test/files.fosswire.com/2007/08/fwunixref.txt/via/pdf'
+           , 'random url w/wildcard param 1');
         
         # prevent printing headers
         $s->debug('ran adv routing tests a...');
@@ -20,7 +21,8 @@ my $s = sweet->routes({
     '/test/*' => sub {
         my $s = shift;
         ok(1, 'route mapped');
-        is($s->param('*'), 'files.fosswire.com/2007/08/fwunixref.txt/via/pdf', 'random url w/wildcard param 1');
+        is($s->param('*'), 'files.fosswire.com/2007/08/fwunixref.txt/via/pdf'
+           , 'random url w/wildcard param 1');
         
         # prevent printing headers
         $s->debug('ran adv routing tests b...');

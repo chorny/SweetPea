@@ -5,7 +5,7 @@ use App::Rad;
 use Cwd 'getcwd';
 
 BEGIN {
-  eval "use SweetPea 2.30 ();";
+  eval "use SweetPea 2.33 ();";
   if ($@) {
     die <<END;
   To use the this builder please install SweetPea (web application framework)
@@ -95,7 +95,20 @@ BEGIN {
 use SweetPea $SweetPea::VERSION;
 
 # run application
-sweet->run;
+
+my  \$s = sweet;
+    
+    exit \$s->run if \$s->request_method;
+    
+    # test from the cli
+    \$s->routes({
+      
+      # write to console  
+      '/root/_shutdown'   => sub {
+        shift->output('debug', 'cli');
+      }
+        
+    })->test(\$ARGV[0]);    
 EOF
    $bpcode->{'script'} = <<EOF;
 #!$^X -w
@@ -109,16 +122,31 @@ BEGIN {
 use SweetPea $SweetPea::VERSION;
 
 # weightless application
-sweet->routes({
+
+my  \$s = sweet;
+    \$s->routes({
+        
+        '/:url' => sub {
+            my \$s = shift;
+            
+            \$s->html("<h1>SweetPea is alive and well</h1>");
+            \$s->html("You passed an inline url param: " . \$s->param('url') )
+            if \$s->param('url');
+        }
+        
+    });
     
-    '/:url' => sub {
-        my \$s = shift;
-        \$s->html("<h1>SweetPea is alive and well</h1>");
-        \$s->html("You passed an inline url param: " . \$s->param('url') )
-        if \$s->param('url');
-    }
+    exit \$s->run if \$s->request_method;
     
-})->run;
+    # test from the cli
+    \$s->routes({
+      
+      # write to console  
+      '/root/_shutdown'   => sub {
+        shift->output('debug', 'cli');
+      }
+        
+    })->test(\$ARGV[0]);    
 EOF
    $bpcode->{'tester'} = <<EOF;
 #!$^X -w
@@ -165,7 +193,7 @@ sub _begin {
 
 sub _index {
     my ( \$self, \$s ) = \@_;
-    \$s->forward('/sweet/welcome');
+    \$s->redirect('/sweet/welcome');
 }
 
 sub _end {
@@ -195,100 +223,164 @@ to before development. This module should be removed before development.
 $cut
 EOF
    $bpcode->{'sweet'} .= <<'EOF';
+# actions
+
 sub welcome {
     my ( $self, $s ) = @_;
-    my @html = ();
-
-    #header
-    push @html, "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//
-    EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n";
-    push @html, "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n";
-    push @html, "    <head>\n";
-    push @html, "	<meta http-equiv=\"Content-Type\" content=\"text/html;
-    charset=utf-8\" />\n";
-    push @html, "	<title>SweetPea is Alive and Well - SweetPea, the PnP
-    Perl Web Application Framework</title>\n";
-
-    #stylesheet
-    push @html, "<style type=\"text/css\">\n";
-    push @html, "	    body\n";
-    push @html, "	    {\n";
-    push @html, "		font-family:    Bitstream Vera Sans,Trebuchet
-    MS,Verdana,Tahoma,Arial,helvetica,sans-serif;\n";
-    push @html, "		color:          #818F08;\n";
-    push @html, "	    }\n";
-    push @html, "	    h1\n";
-    push @html, "	    {\n";
-    push @html, "		background-color:#818F08;\n";
-    push @html, "		color:#FFFFFF;\n";
-    push @html, "		display:block;\n";
-    push @html, "		font-size:0.85em;\n";
-    push @html, "		font-weight:normal;\n";
-    push @html, "		left:0;\n";
-    push @html, "		padding-bottom:10px;\n";
-    push @html, "		padding-left:15px;\n";
-    push @html, "		padding-right:10px;\n";
-    push @html, "		padding-top:10px;\n";
-    push @html, "		position:absolute;\n";
-    push @html, "		right:0;\n";
-    push @html, "		top:0;\n";
-    push @html, "		margin: 0px;\n";
-    push @html, "	    }\n";
-    push @html, "	    h2\n";
-    push @html, "	    {\n";
-    push @html, "		background-color:#EFEEEE;\n";
-    push @html, "		font-size:1em;\n";
-    push @html, "		padding-bottom:5px;\n";
-    push @html, "		padding-left:5px;\n";
-    push @html, "		padding-right:5px;\n";
-    push @html, "		padding-top:5px;\n";
-    push @html, "	    }\n";
-    push @html, "	    #container\n";
-    push @html, "	    {\n";
-    push @html, "		position:absolute;\n";
-    push @html, "		font-size:0.8em;\n";
-    push @html, "		font-weight:normal;\n";
-    push @html, "		padding-bottom:10px;\n";
-    push @html, "		padding-left:15px;\n";
-    push @html, "		padding-right:10px;\n";
-    push @html, "		padding-top:10px;\n";
-    push @html, "		left:0;\n";
-    push @html, "		right:0;\n";
-    push @html, "		top:40px;\n";
-    push @html, "	    }\n";
-    push @html, "	    .issue\n";
-    push @html, "	    {\n";
-    push @html, "		color: #FF0000;\n";
-    push @html, "	    }\n";
-    push @html, "	    .highlight\n";
-    push @html, "	    {\n";
-    push @html, "		background-color:#EFEEEE;\n";
-    push @html, "		padding:1px;\n";
-    push @html, "	    }\n";
-    push @html, "	</style>\n";
-
+    
     # body
-    my $path = $s->application->{path};
+    my $url  = $s->url->{root};
+    my $ver  = $SweetPea::VERSION;
+    my $pl   = $s->path('/.pl');
+    
+    $s->html(qq(
+    <h1>Welcome Young GrassHopper, SweetPea v$ver is working.&nbsp;
+    <a href="$url"><span style="float:right;color:white">Start Over</span></a>
+    </h1>
+    <div id="container">
+    <div class="section">
+    <h2>Getting Started!</h2>
+    <span class="text">First, you should examine the default structure of the
+    application (if the application was generated using "sweetpea make") which
+    should look similar to the following:</span>
+    
+    <pre>
+    <span class="legend">figure 1.a</span>
+    /static                 ## static content (html, css) is stored here
+    /sweet                  ## application files are stored here
+        /application        ## MVC files are stored here
+            /Controller     ## controllers are stored here
+                Root.pm     ## default controller (should always exist)
+                Sweet.pm    ## new application welcome page controller
+            /Model          ## models are stored here
+                Schema.pm   ## new application boiler-plate model 
+            /View           ## views are stored here
+                Main.pm     ## new application boiler-plate view
+        /sessions           ## auto-generated session files are stored here
+        /templates          ## templates and layouts can be stored here
+        App.pm              ## module for loading plugins (other modules)
+    /.htaccess              ## enables pretty-urls on apache w/mod-rewrite
+    /.pl                    ## default dispatcher (controller/action router)
+    </pre>
+    
+    <span class="text">Second, you might want to familiarize yourself with the
+    dispatcher $pl, which should look similar to the following:</span><br/>
+    
+    <pre>
+    <span class="legend">figure 1.b</span>
+    <a name="line1"> 1</a> #!/usr/bin/perl -w
+    <a name="line2"> 2</a> 
+    <a name="line3"> 3</a> BEGIN {
+    
+    <a name="line4"> 4</a>     use FindBin;
+    <a name="line5"> 5</a>     use lib \$FindBin::Bin . '/sweet';
+    <a name="line6"> 6</a>     use lib \$FindBin::Bin . '/sweet/application';
+    
+    <a name="line7"> 7</a> }
+    <a name="line8"> 8</a> 
+    <a name="line9"> 9</a> use SweetPea 2.32;
+    <a name="line10">10</a> 
+    <a name="line11">11</a> # run application
+    
+    <a name="line12">12</a> sweet-&gt;run;
+    </pre>
 
-    push @html, "    </head>\n";
-    push @html, "    <body>\n";
-    push @html, "    <h1>Welcome Young GrassHopper, SweetPea is working.
-    </h1>\n";
-    push @html, "    <div id=\"container\">\n";
-    push @html, "	<div class=\"section\">\n";
-    push @html, "	<h2>Application Details</h2>\n";
-    push @html, "	<span>SweetPea is running under Perl
-    <span class=\"highlight\">$]</span> and is located at
-    <span class=\"highlight\">$path</span></span><br/>\n";
-    push @html, "	</div>\n";
-    push @html, "    </div>\n";
-    push @html, "    </body>\n";
-    push @html, "</html>\n";
-
-    $s->html(join("", @html));
-
+    <span class="text">All the magic happens around line 12 ( "the sweet method
+    instantiates a new SweetPea object and the run method runs the application"
+    ). This easy to read and understand coding style is consistant throughout
+    the SweetPea API. As you would probably imagine, if you wanted to alter how
+    the applications is run, this would likely happen between the sweet and
+    run method calls. One method that you will likely implement between the
+    sweet and run method calls is the routes method which is responsible for
+    mapping urls to actions (sub routines) manually.</span><br/>
+    
+    <pre>
+    <span class="legend">figure 1.c</span>
+    <a name="line1"> 1</a> #!/usr/bin/perl -w
+    <a name="line2"> 2</a> 
+    <a name="line3"> 3</a> BEGIN {
+    
+    <a name="line4"> 4</a>     use FindBin;
+    <a name="line5"> 5</a>     use lib \$FindBin::Bin . '/sweet';
+    <a name="line6"> 6</a>     use lib \$FindBin::Bin . '/sweet/application';
+    
+    <a name="line7"> 7</a> }
+    <a name="line8"> 8</a> 
+    <a name="line9"> 9</a> use SweetPea 2.32;
+    <a name="line10">10</a> 
+    <a name="line11">11</a> # manual routing engaged :\)
+    
+    <a name="line12">12</a> sweet-&gt;routes({
+    <a name="line13">13</a>     
+    <a name="line14">14</a>     '/:url' =&gt; sub {
+    
+    <a name="line15">15</a>         my \$s = shift;
+    <a name="line16">16</a>         \$s-&gt;html(&quot;&lt;h1&gt;SweetPea is alive and well&lt;/h1&gt;&quot;);    
+    <a name="line17">17</a>         \$s-&gt;html(&quot;You passed an inline url param: &quot; . \$s-&gt;param('url') )
+    <a name="line18">18</a>         if \$s-&gt;param('url');
+    <a name="line19">19</a>     }
+    <a name="line20">20</a>     
+    
+    <a name="line21">21</a> })-&gt;run;
+    </pre>
+    
+    <h2>Now go forth and create....</h2>
+    
+    <code class="text">
+    
+    ... and if you need help use the following resources.<br/>
+    
+    get the latest source code on
+    <a href="http://github.com/awnstudio/SweetPea/"
+    target="_blank">github</a>
+    <br/>
+    
+    read POD (documentation), check install reports, open tickets and more on
+    <a href="http://search.cpan.org/dist/SweetPea" target="_blank">CPAN</a>
+    <br/>
+    
+    </code>
+    
+    <br/>));
 }
 
+# auto-routines
+
+sub _begin {
+    my ( $self, $s ) = @_;
+    $s->html(qq(
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//
+        EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>SweetPea is Alive and Well - Let's get started!</title>
+    <style>
+    body{color:#818F08;font-family:Bitstream Vera Sans,Trebuchet MS,
+    Verdana,Tahoma,Arial,helvetica,sans-serif}h1{background-color:
+    #818F08;color:#FFF;display:block;font-size:.85em;font-weight:400;
+    left:0;margin:0;padding:10px 10px 10px 15px;position:absolute;
+    right:0;top:0}h2{background-color:#EFEEEE;font-size:1em;
+    padding:5px}#container{font-size:.8em;font-weight:400;left:0;
+    padding:10px 10px 10px 15px;position:absolute;right:0;top:40px}
+    .issue{color:red}.highlight{background-color:#EFEEEE;padding:1px}
+    a {color:#818F08} a:hover {color:black} pre {font-size:1.25em;
+    border: 1px solid #EFEEEE; padding:5px; background-color:#FAFAFA; }
+    pre a { padding-right: 15px; border-right: 1px solid #ccc; } .legend
+    { float:right; background-color:#CCC; padding:5px; color:white;
+    position:absolute; right:0px; } .text { color:black; font-size:1.2em; }
+    pre { color:green }
+    </style>
+    </head>
+    <body>));
+}
+
+sub _end {
+    my ( $self, $s ) = @_;
+    $s->html(qq(
+    </body>
+    </html>));
+}
 1;
 EOF
    $bpcode->{'model'} = <<EOF;
@@ -346,7 +438,6 @@ sub makeapp {
     $app_structure = {
       "$path/.htaccess"                             => $bpcode->{htaccess},
       "$path/.pl"                                   => $bpcode->{router},
-      "$path/.t"                                    => $bpcode->{tester},
       "$path/sweet/application/Controller/Root.pm"  => $bpcode->{root},
       "$path/sweet/application/Controller/Sweet.pm" => $bpcode->{sweet},
       "$path/sweet/application/Model/Schema.pm"     => $bpcode->{model},
@@ -468,6 +559,7 @@ sub makemodl {
             print FILE "\n";
             print FILE "1;";
             close FILE;
+            chmod 0755, $module_path;
             $output .= "Created $controller (chmod 755) ...\n";
         }
         else {
@@ -540,6 +632,7 @@ sub makectrl {
             print FILE "\n";
             print FILE "1;";
             close FILE;
+            chmod 0755, $module_path;
             $output .= "Created $controller (chmod 755) ...\n";
         }
         else {
@@ -600,6 +693,7 @@ sub makeview {
             print FILE "\n";
             print FILE "1;";
             close FILE;
+            chmod 0755, $module_path;
             $output .= "Created $controller (chmod 755) ...\n";
         }
         else {
@@ -644,6 +738,7 @@ sub makefile {
               ">$module_path" || exit warn "Error creating $controller, $!";
             print FILE "$data\n" if $data;
             close FILE;
+            chmod 0755, $module_path;
             $output .= "Created file /$controller (chmod 755) ...\n";
         }
         else {
@@ -663,8 +758,7 @@ sub make {
   if ($c->options->{script}) {
     return 
     makefile($bpcode->{script}, '.pl')          .
-    makefile($bpcode->{htaccess}, '.htaccess')  .
-    makefile($bpcode->{tester}, '.t');
+    makefile($bpcode->{htaccess}, '.htaccess');
   }
   else {
     return makeapp();
