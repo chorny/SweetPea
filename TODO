@@ -6,7 +6,7 @@
     [-] Root.pm & Sweet.pm generated with wrong/bad permissions
 
 #   pending
-
+-   [-] Add request as an alias to request_method, allow it to accept params e.g. if $s->request('get');
 -   [-] Fix sweetpea cli to create folders for ops crtl, model, and view
 -   [-] CPAN-Testers reports calling plugin on unloaded object(App)
 -   [-] Rethink permissions and location of security folder

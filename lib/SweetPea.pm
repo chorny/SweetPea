@@ -831,7 +831,7 @@ light-weight, as scalable as you need it to be, and requires little configuratio
 
 Oh how Sweet web application development can be ...
 
-    ... at the cli (command line interface)
+    ... using the cli (command line interface)
     
     # download, test and install
     cpan SweetPea
@@ -839,18 +839,6 @@ Oh how Sweet web application development can be ...
     # build your skeleton application
     cd web_server_root/htdocs/my_new_application
     sweetpea make
-    
-    > Created file /sweet/App.pm (chmod 755) ...
-    > Created file /.pl (chmod 755) ...
-    > Created file /.htaccess (chmod 755) ...
-    > Creat....
-    > ...
-    
-    # in the generated .pl file (change the path to perl if neccessary)
-    
-    #!/usr/bin/perl -w
-    use SweetPea;
-    my $s = SweetPea->new->run;
     
 That's all Folks, wait, SweetPea just got Sweeter.
 SweetPea now supports routes. Checkout this minimalist App.
@@ -867,7 +855,7 @@ SweetPea now supports routes. Checkout this minimalist App.
 
 =head1 EXPORTED
 
-    makeapp (skeleton application generation)
+    sweet (shortcut to SweetPea object instantiation)
 
 =head1 HOW IT WORKS
 

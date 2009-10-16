@@ -13,7 +13,7 @@ my $s = sweet->routes({
         ok(1, 'route mapped');
         is(
            $s->param('data'),
-           'item/$%^&*****(&)7809*&(&)(*&)(*&)*(&(.*)/levitation-business-4-in-1',
+           q'item/$%^&*****(&)7809*&(&)(*&)(*&)*(&(.*)/levitation-business-4-in-1',
            'received inline url value'
         );
         

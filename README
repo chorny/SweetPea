@@ -20,7 +20,7 @@ sweet->routes({
     
 })->run;
 
-INSTALLATION
+FRAMEWORK INSTALLATION
 
 To install this module, run the following commands:
 
@@ -29,12 +29,26 @@ To install this module, run the following commands:
 	make test
 	make install
 
-APPLICATION INSTALLATION
+APPLICATION CREATION
 
 Navigate to the directory where you will be build the application and run:
 
 	... at the cli (command line interface)
-	> sweetpea make
+	> sweetpea make --script
+
+MODULE TESTING
+
+	SweetPea was tested successfully on the following platforms via
+	Sun VirtualBox virutal machines:
+	
+	... as of version 2.33
+	
+	Ubuntu 9 w/Perl v5.10		    via [cpan]  - ok
+	Windows XP w/Strawberry Perl v5.10  via [cpan]	- ok
+	Windows XP w/ActiveState Perl v5.10 via [ppm]	- ok
+	
+	See http://www.cpantesters.org/distro/S/SweetPea.html for additional
+	testing information.
 
 SUPPORT AND DOCUMENTATION
 
