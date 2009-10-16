@@ -14,7 +14,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.33';
+our $VERSION = '2.34';
 
 sub new {
     my $class = shift;
@@ -81,8 +81,24 @@ sub _plugins {
         sub {
             my $self = shift;
             my $opts = {};
+            my $session_folder = $ENV{HOME};
+            $session_folder = (split /[\;\:\,]/, $session_folder)[0]
+             if $session_folder =~ m/[\;\:\,]/;
+            $session_folder =~ s/[\\\/]$//;
             CGI::Session->name("SID");
-            if ($self->{store}->{application}->{local_session}) {
+            if ( -d -w "$session_folder/tmp" ) {
+                $opts->{Directory} = "$session_folder/tmp";
+            }
+            else {
+                if ( -d -w $session_folder ) {
+                    mkdir "$session_folder/tmp", 0777;
+                }
+                if ( -d -w "$session_folder/tmp" ) {
+                    $opts->{Directory} = "$session_folder/tmp";
+                }    
+            }
+            if ($self->{store}->{application}->{local_session}
+                && !$opts->{Directory}) {
                 mkdir "sweet"
                 unless -e
                 "$self->{store}->{application}->{path}/sweet";
@@ -485,7 +501,17 @@ sub content_type {
 }
 
 sub request_method {
-    return $ENV{REQUEST_METHOD};
+    my ($self, $method) = @_;
+    if ($method) {
+        return lc($ENV{REQUEST_METHOD}) eq lc($method) ? 1 : 0;
+    }
+    else {
+        return $ENV{REQUEST_METHOD};
+    }
+}
+
+sub request {
+    shift->request_method(@_);
 }
 
 sub push_download {
@@ -787,7 +813,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.33
+Version 2.34
 
 =cut
 
@@ -1583,12 +1609,27 @@ that comes with creating web applications models, views and controllers.
 
 =head2 request_method
 
-    The request_method determines the method (either Get or Post) used
-    to requests the current action.
+    The request_method return the valu set in the REQUEST_METHOD
+    Environment Variable and is generally used as follows:
     
     if ( $s->request_method eq 'get' ) {
         ...
     }
+    
+    Alternatively, for testing purposes, the request_method method can be
+    use to return a boolean true or false based on whether the supplied
+    value matches the current value in the REQUEST_METHOD Environment
+    Variable.
+    
+    if ( $s->request('get')) {
+        ...
+    }
+
+=cut
+
+=head2 request
+
+    The request method is an alias for request_method.
 
 =cut
 

@@ -7,7 +7,7 @@ use Cwd 'getcwd';
 BEGIN {
   eval "use SweetPea 2.33 ();";
   if ($@) {
-    die <<END;
+    die print <<END;
   To use the this builder please install SweetPea (web application framework)
   which is being reported as missing or broken. Please install via CPAN using
   one of the following commands.
@@ -463,7 +463,7 @@ sub makeapp {
                         mkdir( $fpath, 0755 ) if $fpath !~ /sweet/;
                     }
                     if ( $fod =~ /sweet/ ) {
-                        open IN, ">$path$fod" || die "Can't create $file, $!";
+                        open IN, ">$path$fod" || die print "Can't create $file, $!";
                         print IN $app_structure->{"$path$fod"};
                         close IN;
                         my $mode = '0755';
@@ -471,7 +471,7 @@ sub makeapp {
                         $output .= "Created file $fod (chmod 755) ...\n";
                     }
                     else {
-                        open IN, ">$path$fod" || die "Can't create $file, $!";
+                        open IN, ">$path$fod" || die print "Can't create $file, $!";
                         print IN $app_structure->{"$path$fod"};
                         close IN;
                         chmod 0755, "$path$fod";
@@ -480,7 +480,7 @@ sub makeapp {
                 }
                 else {
                     $fod =~ s/^$path//;
-                    open IN, ">$fod" || die "Can't create $fod, $!";
+                    open IN, ">$fod" || die print "Can't create $fod, $!";
                     print IN $app_structure->{$fod};
                     close IN;
                     chmod 0755, "$fod";
@@ -507,6 +507,12 @@ sub makeapp {
     # secure sessions, and templates folders
     chmod 0755, "$path/sweet/sessions";
     chmod 0755, "$path/sweet/templates";
+    
+    $output .= <<EOF;
+
+Attention *nix users, you may need to fix permissions for generated files.
+If needed run: sudo chmod -R 0755
+EOF
     
     return $output;
 }
@@ -546,7 +552,7 @@ sub makemodl {
         # create controller
         if ( not -e $module_path ) {
             open FILE,
-              ">$module_path" || exit warn "Error creating $controller, $!";
+              ">$module_path" || die print "Error creating $controller, $!";
             print FILE "package $module_name;\n";
             print FILE "\n";
             print FILE "=head1 NAME\n";
@@ -607,7 +613,7 @@ sub makectrl {
         # create controller
         if ( not -e $module_path ) {
             open FILE,
-              ">$module_path" || exit warn "Error creating $controller, $!";
+              ">$module_path" || die print "Error creating $controller, $!";
             print FILE "package $module_name;\n";
             print FILE "\n";
             print FILE "=head1 NAME\n";
@@ -680,7 +686,7 @@ sub makeview {
         # create controller
         if ( not -e $module_path ) {
             open FILE,
-              ">$module_path" || exit warn "Error creating $controller, $!";
+              ">$module_path" || die print "Error creating $controller, $!";
             print FILE "package $module_name;\n";
             print FILE "\n";
             print FILE "=head1 NAME\n";
@@ -735,7 +741,7 @@ sub makefile {
         # create controller
         if ( not -e $module_path ) {
             open FILE,
-              ">$module_path" || exit warn "Error creating $controller, $!";
+              ">$module_path" || die print "Error creating $controller, $!";
             print FILE "$data\n" if $data;
             close FILE;
             chmod 0755, $module_path;
@@ -758,7 +764,11 @@ sub make {
   if ($c->options->{script}) {
     return 
     makefile($bpcode->{script}, '.pl')          .
-    makefile($bpcode->{htaccess}, '.htaccess');
+    makefile($bpcode->{htaccess}, '.htaccess')  . <<EOF;
+
+Attention *nix users, you may need to fix permissions for generated files.
+If needed run: sudo chmod -R 0755
+EOF
   }
   else {
     return makeapp();
