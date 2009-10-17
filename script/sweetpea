@@ -14,9 +14,9 @@ BEGIN {
   
     cpan SweetPea
     -or-
-    perl -MCPAN -e 'install SweetPea'
+    perl -MCPAN -e 'CPAN::install(SweetPea)'
     -or-
-    perl -MCPANPLUS -e 'install SweetPea'
+    perl -MCPANPLUS -e 'CPAN::install(SweetPea)'
 END
   }
 }
