@@ -17,16 +17,21 @@ use File::Find;
 our $VERSION = '2.34';
 
 sub new {
-    my $class = shift;
+    my $class   = shift;
+    my $options = shift;
     my $self  = {};
     bless $self, $class;
 
     #declare config stuff
     $self->{store}->{application}->{html_content}     = [];
     $self->{store}->{application}->{action_discovery} = 1;
-    $self->{store}->{application}->{local_session}    = 0; # for debugging
     $self->{store}->{application}->{content_type}     = 'text/html';
     $self->{store}->{application}->{path}             = $FindBin::Bin;
+    $self->{store}->{application}->{local_session}    =
+        $options->{local_session} ? $options->{local_session} : 0; # debugging
+    $self->{store}->{application}->{session_folder}   =
+        $options->{session_folder} if $options->{session_folder};
+    
     return $self;
 }
 
@@ -46,6 +51,40 @@ sub test {
     $ENV{SCRIPT_NAME}   = "/.pl";
     $ENV{PATH_INFO}     = "$route";
     $self->run;
+}
+
+sub mock {
+    my ($self, $route) = @_;
+    # set up mock runtime environment 
+    $route = '/' unless $route;
+    $self->{store}->{application}->{mock_run} = 1;
+    $self->{store}->{application}->{mock_data} = [];
+    $self->{store}->{application}->{test}->{route} = 
+    $ENV{SCRIPT_NAME}   = "/.pl";
+    $ENV{PATH_INFO}     = "$route";
+    $self->run;
+    push @{$self->{store}->{application}->{mock_data}}, @{$self->html};
+    return @{$self->{store}->{application}->{mock_data}};
+}
+
+sub mock_data {
+    my ( $self, @data ) = @_;
+    if (@data) {
+        my @existing_data =
+          $self->{store}->{application}->{mock_data}
+          ? @{ $self->{store}->{application}->{mock_data} }
+          : ();
+        push @existing_data, @data;
+        $self->{store}->{application}->{mock_data} = \@existing_data;
+        return;
+    }
+    else {
+        if ( $self->{store}->{application}->{mock_data} ) {
+            my @content = @{ $self->{store}->{application}->{mock_data} };
+            $self->{store}->{application}->{mock_data} = [];
+            return \@content;
+        }
+    }
 }
 
 sub _plugins {
@@ -81,33 +120,39 @@ sub _plugins {
         sub {
             my $self = shift;
             my $opts = {};
-            my $session_folder = $ENV{HOME};
-            $session_folder = (split /[\;\:\,]/, $session_folder)[0]
-             if $session_folder =~ m/[\;\:\,]/;
-            $session_folder =~ s/[\\\/]$//;
-            CGI::Session->name("SID");
-            if ( -d -w "$session_folder/tmp" ) {
-                $opts->{Directory} = "$session_folder/tmp";
+            if ($self->{store}->{application}->{session_folder}) {
+                $opts->{Directory} =
+                    $self->{store}->{application}->{session_folder};
             }
             else {
-                if ( -d -w $session_folder ) {
-                    mkdir "$session_folder/tmp", 0777;
-                }
+                my $session_folder = $ENV{HOME} || "";
+                $session_folder = (split /[\;\:\,]/, $session_folder)[0]
+                 if $session_folder =~ m/[\;\:\,]/;
+                $session_folder =~ s/[\\\/]$//;
+                CGI::Session->name("SID");
                 if ( -d -w "$session_folder/tmp" ) {
                     $opts->{Directory} = "$session_folder/tmp";
-                }    
-            }
-            if ($self->{store}->{application}->{local_session}
-                && !$opts->{Directory}) {
-                mkdir "sweet"
-                unless -e
-                "$self->{store}->{application}->{path}/sweet";
-                
-                mkdir "sweet/sessions"
-                unless -e
-                "$self->{store}->{application}->{path}/sweet/sessions";
-                
-                $opts->{Directory} = 'sweet/sessions';
+                }
+                else {
+                    if ( -d -w $session_folder ) {
+                        mkdir "$session_folder/tmp", 0777;
+                    }
+                    if ( -d -w "$session_folder/tmp" ) {
+                        $opts->{Directory} = "$session_folder/tmp";
+                    }    
+                }
+                if ($self->{store}->{application}->{local_session}
+                    && !$opts->{Directory}) {
+                    mkdir "sweet"
+                    unless -e
+                    "$self->{store}->{application}->{path}/sweet";
+                    
+                    mkdir "sweet/sessions"
+                    unless -e
+                    "$self->{store}->{application}->{path}/sweet/sessions";
+                    
+                    $opts->{Directory} = 'sweet/sessions';
+                }
             }
             my $sess = CGI::Session->new("driver:file", undef, $opts);
             $sess->flush;
@@ -235,6 +280,10 @@ sub _init_dispatcher {
 
     # restrict access to hidden methods (methods prefixed with an underscore)
     if ( $request =~ /.*\/_\w+$/ ) {
+        if ($self->{store}->{application}->{mock_run}) {
+            $self->mock_data("Access denied to private action $request.");
+            return $self->finish;
+        }
         print
         $self->cgi->header,
         $self->cgi->start_html('Access Denied To Private Action'),
@@ -289,7 +338,10 @@ sub _init_dispatcher {
         $self->finish();
     }
     else {
-
+        if ($self->{store}->{application}->{mock_run}) {
+            $self->mock_data("Resource not found.");
+            return $self->finish;
+        }
         # print http header
         print $self->cgi->header, $self->cgi->start_html('Resource Not Found'),
           $self->cgi->h1('Not Found'), $self->cgi->end_html;
@@ -442,16 +494,24 @@ sub start {
             -value => $self->session->id
         );
     }
-
-    print $self->cgi->header(
-        -type   => $self->application->{content_type},
-        -status => 200,
-        -cookie => $self->cookies
-    );
+    
+    unless ($self->{store}->{application}->{mock_run}) {
+        print $self->cgi->header(
+            -type   => $self->application->{content_type},
+            -status => 200,
+            -cookie => $self->cookies
+        );
+    }
 }
 
 sub finish {
     my $self = shift;
+
+    # return captured data for mock transactions
+    if ($self->{store}->{application}->{mock_run}) {
+        $self->session->flush();
+        return 1;
+    }
 
     # print gathered html
     foreach ( @{ $self->html } ) {
@@ -480,6 +540,10 @@ sub detach {
 
 sub redirect {
     my ( $self, $url ) = @_;
+    if ($self->{store}->{application}->{mock_run}) {
+        $self->mock_data("Attempted to redirect to url $url.");
+        return $self->finish;
+    }
     $url = $self->url($url) unless $url =~ /^http/;
     print $self->cgi->redirect($url);
     exit;
@@ -516,6 +580,11 @@ sub request {
 
 sub push_download {
     my ($self, $file) = @_;
+    if ($self->{store}->{application}->{mock_run}) {
+        $self->mock_data("Attempted to force download file $file.");
+        return $self->finish;
+    }
+    
     if (-e $file) {
         my $name = $file =~ /\/?([\w\.]+)$/ ? $1 : $file;
         my $ext  = $name =~ s/(\.\w+)$/$1/ ? $1 : '';
@@ -1638,8 +1707,8 @@ that comes with creating web applications models, views and controllers.
     The file method assists in creating, editing and deleting files on the
     file system without the to need to create and close file handles manually.
     
-    $s->file('>', 'somefile.txt');  # write
-    $s->file('>>', 'somefile.txt'); # append
+    $s->file('>', 'somefile.txt', $data);  # write
+    $s->file('>>', 'somefile.txt', $data); # append
     $s->file('<', 'somefile.txt');  # read
     $s->file('x', 'somefile.txt');  # delete
     
