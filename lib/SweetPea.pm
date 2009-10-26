@@ -14,7 +14,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.34';
+our $VERSION = '2.35';
 
 sub new {
     my $class   = shift;
@@ -425,8 +425,8 @@ sub _url_parser {
     }
     
     # 4. perform recursion tests as a last ditch effort
-    if ($here =~ m/\//) {
-        my @acts = split /\//, $here;
+    if ($path =~ m/\//) {
+        my @acts = split /\//, $path;
         my @trail = ();
         my $possibilities = @acts;
         for (my $i = 0; $i < $possibilities; $i++) {
@@ -882,7 +882,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.34
+Version 2.35
 
 =cut
 
