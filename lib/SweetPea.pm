@@ -14,7 +14,7 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.35';
+our $VERSION = '2.36';
 
 sub new {
     my $class   = shift;
@@ -666,9 +666,10 @@ sub cookies {
 sub flash {
     my ( $self, $message ) = @_;
     if ( defined $message ) {
+        my $last_message = $self->session->param( '_FLASH' );
         $self->session->param( '_FLASH' => $message );
         $self->session->flush;
-        return $message;
+        return $message eq '' ? $last_message : $message;
     }
     else {
         return $self->session->param('_FLASH');
@@ -882,7 +883,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.35
+Version 2.36
 
 =cut
 
