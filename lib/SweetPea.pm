@@ -14,12 +14,12 @@ use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.36';
+our $VERSION = '2.362';
 
 sub new {
     my $class   = shift;
     my $options = shift;
-    my $self  = {};
+    my $self    = {};
     bless $self, $class;
 
     #declare config stuff
@@ -54,17 +54,27 @@ sub test {
 }
 
 sub mock {
-    my ($self, $route) = @_;
+    my ($self, $route)      = @_;
+    # mock can only be run as a get request
+    my $original_request    = $ENV{REQUEST_METHOD};
+    my $original_pathinfo   = $ENV{PATH_INFO};
+    $ENV{REQUEST_METHOD}    = 'GET';
     # set up mock runtime environment 
     $route = '/' unless $route;
     $self->{store}->{application}->{mock_run} = 1;
     $self->{store}->{application}->{mock_data} = [];
     $self->{store}->{application}->{test}->{route} = 
-    $ENV{SCRIPT_NAME}   = "/.pl";
-    $ENV{PATH_INFO}     = "$route";
+    $ENV{SCRIPT_NAME}       = "/.pl" unless $ENV{SCRIPT_NAME};
+    $ENV{PATH_INFO}         = "$route";
     $self->run;
+    $ENV{REQUEST_METHOD}    = $original_request;
+    $ENV{PATH_INFO}         = $original_pathinfo;
     push @{$self->{store}->{application}->{mock_data}}, @{$self->html};
-    return @{$self->{store}->{application}->{mock_data}};
+    my @return = @{$self->{store}->{application}->{mock_data}};
+    $self->{store}->{application}->{mock_run} = 0;
+    $self->{store}->{application}->{mock_data} = [];
+    $self->{store}->{application}->{test}->{route} = '';
+    return @return;
 }
 
 sub mock_data {
@@ -255,11 +265,13 @@ sub _init_dispatcher {
     my $controller  = $self->{store}->{application}->{url}->{controller};
     my $action      = $self->{store}->{application}->{url}->{action};
     my $request     = $self->{store}->{application}->{url}->{here};
+    my $handler     = '';
     
     # check/balance
        $controller  = '/' unless $controller;
     
-    my $handler     = $actions->{$controller} if $controller;
+       $handler     = $action ? "$controller/$action" : $controller;
+       $handler     = $actions->{$handler} if $handler;
     my $package     = $controller;
     
     # hack
@@ -377,7 +389,7 @@ sub _url_parser {
         if ($here =~ m/\//) {
             my @act = split /\//, $path;
             $action = pop @act;
-            $controller = join("/", @act) . ($action ? "/$action" : "");
+            $controller = join("/", @act);
             $controller = "/$controller" if $controller !~ m/^\//;
             $self->{store}->{application}->{'url'}->{controller} = $controller;
             $self->{store}->{application}->{'url'}->{action}     = $action;
@@ -433,8 +445,8 @@ sub _url_parser {
             my $a = $acts[$i];
             if (@acts > 1) {
                 if (ref($actions->{join("/", @acts)}) eq "CODE") {
+                    $action     = pop @acts;
                     $controller = join("/", @acts);
-                    $action     = "";
                     $self->{store}->{application}->{'url'}->{controller} = $controller;
                     $self->{store}->{application}->{'url'}->{action}     = $action;
                     $self->cgi->param(-name => '*', -value => join("/", reverse @trail));
@@ -443,9 +455,9 @@ sub _url_parser {
                 else {
                     # wow, still nothing, look for local index
                     if (ref($actions->{join("/", @acts)."/_index"}) eq "CODE") {
-                        $controller = join("/", @acts)."/_index";
                         $action     = "_index";
-                        $self->{store}->{application}->{'url'}->{controller} = $controller;
+                        $controller = join("/", @acts);
+                        $self->{store}->{application}->{'url'}->{controller} = join("/", @acts);
                         $self->{store}->{application}->{'url'}->{action}     = $action;
                         $self->cgi->param(-name => '*', -value => join("/", reverse @trail));
                         return 1;
@@ -465,8 +477,8 @@ sub _url_parser {
                 else {
                     # this better work, look for local index
                     if (ref($actions->{"/$acts[0]/_index"}) eq "CODE") {
-                        $controller = "/$acts[0]/_index";
                         $action     = "_index";
+                        $controller = "/$acts[0]";
                         $self->{store}->{application}->{'url'}->{controller} = $controller;
                         $self->{store}->{application}->{'url'}->{action}     = $action;
                         $self->cgi->param(-name => '*', -value => join("/", reverse @trail));
@@ -883,7 +895,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.36
+Version 2.362
 
 =cut
 

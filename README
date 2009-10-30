@@ -38,17 +38,7 @@ Navigate to the directory where you will be build the application and run:
 
 MODULE TESTING
 
-	SweetPea was tested successfully on the following platforms via
-	Sun VirtualBox virutal machines:
-	
-	... as of version 2.33
-	
-	Ubuntu 9 w/Perl v5.10		    via [cpan]  - ok
-	Windows XP w/Strawberry Perl v5.10  via [cpan]	- ok
-	Windows XP w/ActiveState Perl v5.10 via [ppm]	- ok
-	
-	See http://www.cpantesters.org/distro/S/SweetPea.html for additional
-	testing information.
+	See http://www.cpantesters.org/distro/S/SweetPea.html for testing information.
 
 SUPPORT AND DOCUMENTATION
 
