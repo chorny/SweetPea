@@ -172,7 +172,7 @@ sub _plugins {
 
     # load non-core plugins from App.pm
     if (-e "sweet/App.pm") {
-        eval 'require App.pm';
+        eval 'require q(App.pm)';
         if ($@) {
             warn $@;
         }
