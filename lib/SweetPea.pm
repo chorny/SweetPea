@@ -9,12 +9,10 @@ BEGIN {
 
 use CGI;
 use CGI::Carp qw/fatalsToBrowser/;
-use CGI::Cookie;
-use CGI::Session;
 use FindBin;
 use File::Find;
 
-our $VERSION = '2.362';
+our $VERSION = '2.363';
 
 sub new {
     my $class   = shift;
@@ -117,9 +115,10 @@ sub _plugins {
     $self->plug(
         'cookie',
         sub {
+            require 'CGI/Cookie.pm';
             my $self = shift;
             push @{ $self->{store}->{application}->{cookie_data} },
-              new CGI::Cookie(@_);
+              CGI::Cookie->new(@_);
             return $self->{store}->{application}->{cookie_data}
               ->[ @{ $self->{store}->{application}->{cookie_data} } ];
         }
@@ -128,6 +127,7 @@ sub _plugins {
     $self->plug(
         'session',
         sub {
+            require 'CGI/Session.pm';
             my $self = shift;
             my $opts = {};
             if ($self->{store}->{application}->{session_folder}) {
@@ -171,11 +171,15 @@ sub _plugins {
     );
 
     # load non-core plugins from App.pm
-    eval 'use App';
-    unless ($@) {
-        eval "App->plugins($self)";
+    if (-e "sweet/App.pm") {
+        eval 'require App.pm';
+        if ($@) {
+            warn $@;
+        }
+        else {
+            eval { App->plugins($self) };
+        }
     }
-
     return $self;
 }
 
@@ -638,7 +642,8 @@ sub push_download {
 
 sub controller {
     my ( $self, $path ) = @_;
-    return $self->uri->{controller} . ( $path ? $path : '' );
+    my $controller = $self->uri->{controller}; 
+    return "$controller$path" if $controller || $path;
 }
 
 sub action {
@@ -828,7 +833,7 @@ sub plug {
     if ( $name && $init ) {
         no warnings 'redefine';
         no strict 'refs';
-        my $routine = "SweetPea::$name";
+        my $routine = ref($self) . "::$name";
         if ( ref $init eq "CODE" ) {
             *{$routine} = sub {
                 $self->{".$name"} = $init->(@_) unless $self->{".$name"};
@@ -895,7 +900,7 @@ SweetPea - A web framework that doesn't get in the way, or suck.
 
 =head1 VERSION
 
-Version 2.362
+Version 2.363
 
 =cut
 
