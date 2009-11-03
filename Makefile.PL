@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use inc::Module::Install;
+use ExtUtils::MakeMaker;
  
 WriteMakefile(
     NAME => 'SweetPea',
