@@ -1,4 +1,5 @@
 package SweetPea;
+use 5.006;
 
 BEGIN {
     use Exporter();
